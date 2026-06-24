@@ -1,7 +1,7 @@
 package com.tiramisu.deepseekwidget
 
 import android.content.Context
-import androidx.work.CoroutineWorker
+import androidx.work.Worker
 import androidx.work.WorkerParameters
 
 /**
@@ -10,9 +10,9 @@ import androidx.work.WorkerParameters
 class WidgetUpdateWorker(
     appContext: Context,
     params: WorkerParameters
-) : CoroutineWorker(appContext, params) {
+) : Worker(appContext, params) {
 
-    override suspend fun doWork(): Result {
+    override fun doWork(): Result {
         val apiKey = DeepSeekWidget.getApiKey(applicationContext)
         if (apiKey.isNullOrBlank()) {
             return Result.success() // No API key configured yet

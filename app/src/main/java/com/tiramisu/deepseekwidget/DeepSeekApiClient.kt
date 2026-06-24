@@ -1,8 +1,6 @@
 package com.tiramisu.deepseekwidget
 
 import com.google.gson.Gson
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -30,9 +28,9 @@ class DeepSeekApiClient(private val apiKey: String) {
 
     /**
      * Fetch all widget data in one call.
-     * Balance is required; usage summary is optional (may fail on some networks).
+     * Not a suspend function — can be called from any thread.
      */
-    suspend fun fetchAll(): WidgetDisplayData = withContext(Dispatchers.IO) {
+    fun fetchAll(): WidgetDisplayData {
         try {
             val balanceData = fetchBalance()
             val usageData = try {
@@ -41,7 +39,7 @@ class DeepSeekApiClient(private val apiKey: String) {
                 null // Usage API is optional
             }
 
-            WidgetDisplayData(
+            return WidgetDisplayData(
                 totalBalance = balanceData.total_balance,
                 currency = balanceData.currency,
                 isAvailable = true,
@@ -55,7 +53,7 @@ class DeepSeekApiClient(private val apiKey: String) {
                 updatedAt = System.currentTimeMillis()
             )
         } catch (e: Exception) {
-            WidgetDisplayData(
+            return WidgetDisplayData(
                 error = e.message ?: "未知错误"
             )
         }

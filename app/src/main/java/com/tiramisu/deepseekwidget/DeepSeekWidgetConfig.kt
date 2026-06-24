@@ -10,9 +10,6 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.work.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 /**
@@ -90,9 +87,7 @@ class DeepSeekWidgetConfig : Activity() {
         Thread {
             try {
                 val client = DeepSeekApiClient(apiKey)
-                val data = runBlocking(Dispatchers.IO) {
-                    client.fetchAll()
-                }
+                val data = client.fetchAll()
 
                 runOnUiThread {
                     if (data.error == null) {

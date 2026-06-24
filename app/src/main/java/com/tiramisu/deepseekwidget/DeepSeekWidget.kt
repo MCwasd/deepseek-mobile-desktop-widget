@@ -6,15 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.widget.RemoteViews
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.work.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -147,8 +142,6 @@ class DeepSeekWidget : AppWidgetProvider() {
         }
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -185,7 +178,7 @@ class DeepSeekWidget : AppWidgetProvider() {
         }
 
         // Fetch data asynchronously
-        scope.launch {
+        Thread {
             try {
                 val client = DeepSeekApiClient(apiKey)
                 val data = client.fetchAll()
@@ -193,7 +186,7 @@ class DeepSeekWidget : AppWidgetProvider() {
             } catch (e: Exception) {
                 updateWidgets(context, WidgetDisplayData(error = e.message))
             }
-        }
+        }.start()
 
         // Schedule periodic updates
         schedulePeriodicUpdate(context)
