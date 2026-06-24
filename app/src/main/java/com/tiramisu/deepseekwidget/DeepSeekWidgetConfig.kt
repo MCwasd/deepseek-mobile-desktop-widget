@@ -1,5 +1,6 @@
 package com.tiramisu.deepseekwidget
 
+import android.app.Activity
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
@@ -8,11 +9,9 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
 import androidx.work.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
@@ -22,7 +21,7 @@ import java.util.concurrent.TimeUnit
  * The user enters their DeepSeek API Key, which is stored securely
  * using EncryptedSharedPreferences (AES-256-GCM).
  */
-class DeepSeekWidgetConfig : AppCompatActivity() {
+class DeepSeekWidgetConfig : Activity() {
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
@@ -88,44 +87,48 @@ class DeepSeekWidgetConfig : AppCompatActivity() {
         tvStatus: TextView,
         btnSave: Button
     ) {
-        lifecycleScope.launch {
+        Thread {
             try {
                 val client = DeepSeekApiClient(apiKey)
-                val data = withContext(Dispatchers.IO) {
+                val data = runBlocking(Dispatchers.IO) {
                     client.fetchAll()
                 }
 
-                if (data.error == null) {
-                    // Save the API key
-                    DeepSeekWidget.setApiKey(this@DeepSeekWidgetConfig, apiKey)
+                runOnUiThread {
+                    if (data.error == null) {
+                        // Save the API key
+                        DeepSeekWidget.setApiKey(this@DeepSeekWidgetConfig, apiKey)
 
-                    // Show initial data on widget
-                    DeepSeekWidget.updateWidgets(this@DeepSeekWidgetConfig, data)
+                        // Show initial data on widget
+                        DeepSeekWidget.updateWidgets(this@DeepSeekWidgetConfig, data)
 
-                    // Schedule periodic updates
-                    scheduleWork()
+                        // Schedule periodic updates
+                        scheduleWork()
 
-                    // Set success result so widget gets placed
-                    val resultValue = Intent().apply {
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        // Set success result so widget gets placed
+                        val resultValue = Intent().apply {
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        }
+                        setResult(RESULT_OK, resultValue)
+
+                        Toast.makeText(
+                            this@DeepSeekWidgetConfig,
+                            "验证成功！余额: ${data.formattedBalance}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    } else {
+                        tvStatus.text = "验证失败: ${data.error}"
+                        btnSave.isEnabled = true
                     }
-                    setResult(RESULT_OK, resultValue)
-
-                    Toast.makeText(
-                        this@DeepSeekWidgetConfig,
-                        "验证成功！余额: ${data.formattedBalance}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    finish()
-                } else {
-                    tvStatus.text = "验证失败: ${data.error}"
-                    btnSave.isEnabled = true
                 }
             } catch (e: Exception) {
-                tvStatus.text = "验证失败: ${e.message?.take(50) ?: "连接错误"}"
-                btnSave.isEnabled = true
+                runOnUiThread {
+                    tvStatus.text = "验证失败: ${e.message?.take(50) ?: "连接错误"}"
+                    btnSave.isEnabled = true
+                }
             }
-        }
+        }.start()
     }
 
     private fun scheduleWork() {

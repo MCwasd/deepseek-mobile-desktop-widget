@@ -55,11 +55,7 @@ dependencies {
     // Core
     implementation("androidx.core:core-ktx:1.12.0")
 
-    // AppCompat (for Config Activity)
-    implementation("androidx.appcompat:appcompat:1.6.1")
 
-    // Activity (for lifecycleScope)
-    implementation("androidx.activity:activity-ktx:1.8.2")
 
     // AppWidget
     implementation("androidx.glance:glance-appwidget:1.0.0")
