@@ -84,46 +84,16 @@ class DeepSeekWidgetConfig : Activity() {
         tvStatus: TextView,
         btnSave: Button
     ) {
-        Thread {
-            try {
-                val client = DeepSeekApiClient(apiKey)
-                val data = client.fetchAll()
+        // Just save the key and finish — widget will pick it up
+        DeepSeekWidget.setApiKey(this@DeepSeekWidgetConfig, apiKey)
 
-                runOnUiThread {
-                    if (data.error == null) {
-                        // Save the API key
-                        DeepSeekWidget.setApiKey(this@DeepSeekWidgetConfig, apiKey)
+        val resultValue = Intent().apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+        setResult(RESULT_OK, resultValue)
 
-                        // Show initial data on widget
-                        DeepSeekWidget.updateWidgets(this@DeepSeekWidgetConfig, data)
-
-                        // Schedule periodic updates
-                        scheduleWork()
-
-                        // Set success result so widget gets placed
-                        val resultValue = Intent().apply {
-                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                        }
-                        setResult(RESULT_OK, resultValue)
-
-                        Toast.makeText(
-                            this@DeepSeekWidgetConfig,
-                            "验证成功！余额: ${data.formattedBalance}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        finish()
-                    } else {
-                        tvStatus.text = "验证失败: ${data.error}"
-                        btnSave.isEnabled = true
-                    }
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    tvStatus.text = "验证失败: ${e.message?.take(50) ?: "连接错误"}"
-                    btnSave.isEnabled = true
-                }
-            }
-        }.start()
+        scheduleWork()
+        finish()
     }
 
     private fun scheduleWork() {

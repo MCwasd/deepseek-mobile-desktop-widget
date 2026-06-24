@@ -166,43 +166,12 @@ class DeepSeekWidget : AppWidgetProvider() {
         // Schedule periodic updates
         schedulePeriodicUpdate(context)
 
-        val apiKey = getApiKey(context)
-        if (apiKey.isNullOrBlank()) {
-            val views = RemoteViews(context.packageName, R.layout.widget_layout)
-            views.setTextViewText(R.id.tv_balance, "⚙️")
-            views.setTextViewText(R.id.tv_today_cost, "请配置 API Key")
-            views.setTextViewText(R.id.tv_input_tokens, "长按小组件进入设置")
-            views.setTextViewText(R.id.tv_output_tokens, "")
-            views.setTextViewText(R.id.tv_cache_rate, "")
-            views.setTextViewText(R.id.tv_updated, "")
-            views.setViewVisibility(R.id.widget_divider, android.view.View.INVISIBLE)
-            appWidgetManager.updateAppWidget(appWidgetIds, views)
-            return
-        }
-
-        // Show loading state immediately
+        // Show a simple message on the widget
         for (id in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout)
-            views.setTextViewText(R.id.tv_balance, "---")
-            views.setTextViewText(R.id.tv_today_cost, "加载中...")
-            views.setTextViewText(R.id.tv_input_tokens, "📝 获取数据")
-            views.setTextViewText(R.id.tv_output_tokens, "")
-            views.setTextViewText(R.id.tv_cache_rate, "")
-            views.setTextViewText(R.id.tv_updated, "")
-            views.setViewVisibility(R.id.widget_divider, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_balance, "Hello Widget!")
             appWidgetManager.updateAppWidget(id, views)
         }
-
-        // Fetch data asynchronously
-        Thread {
-            try {
-                val client = DeepSeekApiClient(apiKey)
-                val data = client.fetchAll()
-                updateWidgets(context, data)
-            } catch (e: Exception) {
-                updateWidgets(context, WidgetDisplayData(error = e.message))
-            }
-        }.start()
     }
 
     override fun onReceive(context: Context, intent: Intent) {
