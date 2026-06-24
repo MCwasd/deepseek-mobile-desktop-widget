@@ -3,9 +3,28 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// 签名配置（CI 中生成 keystore.properties，本地构建可手动创建）
+val keystorePropertiesFile = file("keystore.properties")
+val keystoreProperties = java.util.Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.tiramisu.deepseekwidget"
     compileSdk = 34
+
+    signingConfigs {
+        create("release") {
+            storeFile = keystorePropertiesFile.parentFile.resolve(
+                keystoreProperties.getProperty("storeFile") ?: "release.jks"
+            )
+            storePassword = keystoreProperties.getProperty("storePassword") ?: "android"
+            keyAlias = keystoreProperties.getProperty("keyAlias") ?: "release"
+            keyPassword = keystoreProperties.getProperty("keyPassword") ?: "android"
+        }
+    }
+
 
 
 
@@ -19,6 +38,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

@@ -3,7 +3,7 @@ name: Build APK
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # Allow manual trigger from Actions tab
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,21 +22,30 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkey -v -keystore release.jks \
+            -alias release -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=DeepSeekWidget, OU=Personal, O=Tiramisu, L=Qingdao, ST=Shandong, C=CN"
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build APK (Release)
-        run: ./gradlew assembleRelease
-
-      - name: Sign APK (debug key - usable for personal use)
-        env:
-          KEYSTORE_PASSWORD: android
-          KEY_ALIAS: androiddebugkey
-          KEY_PASSWORD: android
+      - name: Build APK (Release) with signing
         run: |
-          # Android debug keystore is auto-generated; APK is already signed with debug cert
-          echo "APK built and ready"
+          echo "storePassword=android" >> app/keystore.properties
+          echo "keyPassword=android" >> app/keystore.properties
+          echo "keyAlias=release" >> app/keystore.properties
+          echo "storeFile=release.jks" >> app/keystore.properties
+          ./gradlew assembleRelease
+
+      - name: Verify APK
+        run: |
           ls -lh app/build/outputs/apk/release/
+          echo ""
+          echo "=== APK signature info ==="
+          jarsigner -verify -certs app/build/outputs/apk/release/*.apk 2>&1 | head -10
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
