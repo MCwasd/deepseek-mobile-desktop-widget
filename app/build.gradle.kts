@@ -60,6 +60,9 @@ dependencies {
     // Encrypted storage for API key
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Fix: security-crypto 的 Tink 依赖需要 error_prone_annotations
+    implementation("com.google.errorprone:error_prone_annotations:2.26.1")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
