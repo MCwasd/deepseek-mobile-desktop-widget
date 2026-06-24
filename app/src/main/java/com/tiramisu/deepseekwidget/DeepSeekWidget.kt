@@ -1,6 +1,5 @@
 package com.tiramisu.deepseekwidget
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
@@ -10,9 +9,6 @@ import android.widget.RemoteViews
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.work.*
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -78,16 +74,7 @@ class DeepSeekWidget : AppWidgetProvider() {
                 val views = RemoteViews(context.packageName, R.layout.widget_layout)
                 populateViews(context, views, data)
 
-                // Set up click-to-refresh
-                val refreshIntent = Intent(context, DeepSeekWidget::class.java).apply {
-                    action = ACTION_REFRESH
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                }
-                val refreshPI = PendingIntent.getBroadcast(
-                    context, id, refreshIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                views.setOnClickPendingIntent(R.id.widget_container, refreshPI)
+
 
                 manager.updateAppWidget(id, views)
             }
