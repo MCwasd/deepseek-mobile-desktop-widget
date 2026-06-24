@@ -9,7 +9,11 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.work.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 /**
@@ -84,47 +88,44 @@ class DeepSeekWidgetConfig : AppCompatActivity() {
         tvStatus: TextView,
         btnSave: Button
     ) {
-        // Run the verification in background
-        Thread {
+        lifecycleScope.launch {
             try {
                 val client = DeepSeekApiClient(apiKey)
-                val data = client.fetchAll()
-
-                runOnUiThread {
-                    if (data.error == null) {
-                        // Save the API key
-                        DeepSeekWidget.setApiKey(this, apiKey)
-
-                        // Show initial data on widget
-                        DeepSeekWidget.updateWidgets(this, data)
-
-                        // Schedule periodic updates
-                        scheduleWork()
-
-                        // Set success result so widget gets placed
-                        val resultValue = Intent().apply {
-                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                        }
-                        setResult(RESULT_OK, resultValue)
-
-                        Toast.makeText(
-                            this,
-                            "验证成功！余额: ${data.formattedBalance}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        finish()
-                    } else {
-                        tvStatus.text = "验证失败: ${data.error}"
-                        btnSave.isEnabled = true
-                    }
+                val data = withContext(Dispatchers.IO) {
+                    client.fetchAll()
                 }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    tvStatus.text = "验证失败: ${e.message?.take(50) ?: "连接错误"}"
+
+                if (data.error == null) {
+                    // Save the API key
+                    DeepSeekWidget.setApiKey(this@DeepSeekWidgetConfig, apiKey)
+
+                    // Show initial data on widget
+                    DeepSeekWidget.updateWidgets(this@DeepSeekWidgetConfig, data)
+
+                    // Schedule periodic updates
+                    scheduleWork()
+
+                    // Set success result so widget gets placed
+                    val resultValue = Intent().apply {
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    }
+                    setResult(RESULT_OK, resultValue)
+
+                    Toast.makeText(
+                        this@DeepSeekWidgetConfig,
+                        "验证成功！余额: ${data.formattedBalance}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                } else {
+                    tvStatus.text = "验证失败: ${data.error}"
                     btnSave.isEnabled = true
                 }
+            } catch (e: Exception) {
+                tvStatus.text = "验证失败: ${e.message?.take(50) ?: "连接错误"}"
+                btnSave.isEnabled = true
             }
-        }.start()
+        }
     }
 
     private fun scheduleWork() {

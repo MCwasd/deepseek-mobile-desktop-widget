@@ -235,7 +235,7 @@ class DeepSeekWidget : AppWidgetProvider() {
             .setConstraints(constraints)
             .setBackoffCriteria(
                 BackoffPolicy.EXPONENTIAL,
-                PeriodicWorkRequest.MIN_BACKOFF_MILLIS,
+                10000L,
                 TimeUnit.MILLISECONDS
             )
             .build()
