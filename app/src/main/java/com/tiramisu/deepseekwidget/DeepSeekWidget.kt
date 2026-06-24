@@ -163,7 +163,9 @@ class DeepSeekWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        // Fetch data and update all widgets
+        // Schedule periodic updates
+        schedulePeriodicUpdate(context)
+
         val apiKey = getApiKey(context)
         if (apiKey.isNullOrBlank()) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout)
@@ -178,7 +180,20 @@ class DeepSeekWidget : AppWidgetProvider() {
             return
         }
 
-        // Fetch data asynchronously (includes setting click listeners)
+        // Show loading state immediately
+        for (id in appWidgetIds) {
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            views.setTextViewText(R.id.tv_balance, "---")
+            views.setTextViewText(R.id.tv_today_cost, "加载中...")
+            views.setTextViewText(R.id.tv_input_tokens, "📝 获取数据")
+            views.setTextViewText(R.id.tv_output_tokens, "")
+            views.setTextViewText(R.id.tv_cache_rate, "")
+            views.setTextViewText(R.id.tv_updated, "")
+            views.setViewVisibility(R.id.widget_divider, android.view.View.VISIBLE)
+            appWidgetManager.updateAppWidget(id, views)
+        }
+
+        // Fetch data asynchronously
         Thread {
             try {
                 val client = DeepSeekApiClient(apiKey)
@@ -188,9 +203,6 @@ class DeepSeekWidget : AppWidgetProvider() {
                 updateWidgets(context, WidgetDisplayData(error = e.message))
             }
         }.start()
-
-        // Schedule periodic updates
-        schedulePeriodicUpdate(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
