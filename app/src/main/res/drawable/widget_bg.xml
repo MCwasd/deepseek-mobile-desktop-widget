@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Widget background with rounded corners -->
+    <solid android:color="@color/widget_bg" />
+
+    <!-- Subtle border -->
+    <stroke
+        android:width="0.5dp"
+        android:color="@color/widget_border" />
+
+    <!-- Rounded corners -->
+    <corners android:radius="16dp" />
+
+    <!-- Light shadow -->
+    <padding
+        android:left="4dp"
+        android:top="4dp"
+        android:right="4dp"
+        android:bottom="4dp" />
+
+</shape>

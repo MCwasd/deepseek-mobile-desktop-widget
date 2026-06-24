@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DeepSeekWidget" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.DeepSeekWidget.Config" parent="android:Theme.Material.Light.DialogWhenLarge.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+
+    <style name="Widget.Button" parent="android:Widget.Material.Button">
+        <item name="android:background">@android:drawable/btn_default</item>
+    </style>
+
+    <style name="Widget.Button.Accent" parent="android:Widget.Material.Button">
+        <item name="android:background">@android:drawable/btn_default</item>
+        <item name="android:textColor">@color/balance_text</item>
+    </style>
+</resources>

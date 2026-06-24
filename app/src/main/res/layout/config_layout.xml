@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Configuration activity layout -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="24dp">
+
+        <!-- Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DeepSeek Dashboard"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/balance_text"
+            android:layout_marginTop="32dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="配置 API Key"
+            android:textSize="14sp"
+            android:textColor="@color/sub_text"
+            android:layout_marginTop="8dp" />
+
+        <!-- API Key Input -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="DeepSeek API Key"
+            android:textSize="13sp"
+            android:textColor="@color/label_text"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/et_api_key"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            android:inputType="textVisiblePassword"
+            android:textSize="14sp"
+            android:background="@android:drawable/editbox_background"
+            android:paddingHorizontal="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="在 platform.deepseek.com/api_keys 获取"
+            android:textSize="11sp"
+            android:textColor="@color/sub_text"
+            android:layout_marginTop="4dp" />
+
+        <!-- Status -->
+        <TextView
+            android:id="@+id/tv_config_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="@color/label_text"
+            android:layout_marginTop="8dp"
+            android:visibility="gone" />
+
+        <!-- Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="32dp">
+
+            <Button
+                android:id="@+id/btn_cancel"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="取消"
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp"
+                style="@style/Widget.Button" />
+
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="保存并验证"
+                android:textSize="14sp"
+                android:layout_marginStart="8dp"
+                style="@style/Widget.Button.Accent" />
+
+        </LinearLayout>
+
+        <!-- Description -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="\n💡 用法提示：\n• API Key 加密存储在手机本地\n• 每 30 分钟自动刷新\n• 点击小组件可手动刷新\n• 数据直接拉取 DeepSeek 官方 API"
+            android:textSize="12sp"
+            android:textColor="@color/sub_text"
+            android:layout_marginTop="32dp"
+            android:lineSpacingExtra="4dp" />
+
+    </LinearLayout>
+
+</ScrollView>

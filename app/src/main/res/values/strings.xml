@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DeepSeek Dashboard</string>
+    <string name="widget_description">显示 DeepSeek API 余额、用量和缓存命中率</string>
+    <string name="config_title">配置 DeepSeek API Key</string>
+    <string name="btn_save">保存</string>
+    <string name="btn_cancel">取消</string>
+    <string name="hint_api_key">输入你的 DeepSeek API Key</string>
+</resources>
