@@ -37,7 +37,8 @@ jobs:
           echo "storePassword=android" >> app/keystore.properties
           echo "keyPassword=android" >> app/keystore.properties
           echo "keyAlias=release" >> app/keystore.properties
-          echo "storeFile=release.jks" >> app/keystore.properties
+          # 从 app/ 模块看，项目根目录是上级目录
+          echo "storeFile=../release.jks" >> app/keystore.properties
           ./gradlew assembleRelease
 
       - name: Verify APK
