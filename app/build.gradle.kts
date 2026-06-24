@@ -3,11 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// 签名配置（CI 中生成 keystore.properties，本地构建可手动创建）
-val keystorePropertiesFile = file("keystore.properties")
-val keystoreProperties = java.util.Properties()
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(keystorePropertiesFile.inputStream())
+// 签名配置 — 直接从 keystore.properties 读取
+val signingProps = mutableMapOf<String, String>()
+file("keystore.properties").takeIf { it.exists() }?.let { f ->
+    f.readLines().forEach { line ->
+        val p = line.split("=", limit = 2)
+        if (p.size == 2) signingProps[p[0]] = p[1]
+    }
 }
 
 android {
@@ -16,12 +18,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = keystorePropertiesFile.parentFile.resolve(
-                keystoreProperties.getProperty("storeFile") ?: "release.jks"
-            )
-            storePassword = keystoreProperties.getProperty("storePassword") ?: "android"
-            keyAlias = keystoreProperties.getProperty("keyAlias") ?: "release"
-            keyPassword = keystoreProperties.getProperty("keyPassword") ?: "android"
+            storeFile = signingProps["storeFile"]?.let { file(it) }
+            storePassword = signingProps["storePassword"] ?: "android"
+            keyAlias = signingProps["keyAlias"] ?: "release"
+            keyPassword = signingProps["keyPassword"] ?: "android"
         }
     }
 
