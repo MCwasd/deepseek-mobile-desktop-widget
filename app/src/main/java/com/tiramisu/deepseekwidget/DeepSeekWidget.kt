@@ -66,15 +66,31 @@ class DeepSeekWidget : AppWidgetProvider() {
         }
 
         /**
-         * Update all widget instances with fresh data (from coroutine).
+         * Update all widget instances with fresh data and set up click-to-refresh.
          */
         fun updateWidgets(context: Context, data: WidgetDisplayData) {
-            val views = RemoteViews(context.packageName, R.layout.widget_layout)
-            populateViews(context, views, data)
-
-            val componentName = ComponentName(context, DeepSeekWidget::class.java)
             val manager = AppWidgetManager.getInstance(context)
-            manager.updateAppWidget(componentName, views)
+            val ids = manager.getAppWidgetIds(
+                ComponentName(context, DeepSeekWidget::class.java)
+            )
+
+            for (id in ids) {
+                val views = RemoteViews(context.packageName, R.layout.widget_layout)
+                populateViews(context, views, data)
+
+                // Set up click-to-refresh
+                val refreshIntent = Intent(context, DeepSeekWidget::class.java).apply {
+                    action = ACTION_REFRESH
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                }
+                val refreshPI = PendingIntent.getBroadcast(
+                    context, id, refreshIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(R.id.widget_container, refreshPI)
+
+                manager.updateAppWidget(id, views)
+            }
         }
 
         /**
@@ -162,22 +178,7 @@ class DeepSeekWidget : AppWidgetProvider() {
             return
         }
 
-        // Set up click-to-refresh
-        for (id in appWidgetIds) {
-            val refreshIntent = Intent(context, DeepSeekWidget::class.java).apply {
-                action = ACTION_REFRESH
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-            }
-            val refreshPI = PendingIntent.getBroadcast(
-                context, id, refreshIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val views = RemoteViews(context.packageName, R.layout.widget_layout)
-            views.setOnClickPendingIntent(R.id.widget_container, refreshPI)
-            appWidgetManager.updateAppWidget(id, views)
-        }
-
-        // Fetch data asynchronously
+        // Fetch data asynchronously (includes setting click listeners)
         Thread {
             try {
                 val client = DeepSeekApiClient(apiKey)
