@@ -98,63 +98,10 @@ class DeepSeekWidget : AppWidgetProvider() {
          */
         private fun populateViews(context: Context, views: RemoteViews, data: WidgetDisplayData) {
             if (data.error != null) {
-                // Show error state
-                views.setTextViewText(R.id.tv_balance, "⚠️")
-                views.setTextViewText(R.id.tv_today_cost, "刷新失败")
-                views.setTextViewText(R.id.tv_input_tokens, "")
-                views.setTextViewText(R.id.tv_output_tokens, "")
-                views.setTextViewText(R.id.tv_cache_rate, data.error.take(30))
-                views.setTextViewText(R.id.tv_updated, "")
-                views.setViewVisibility(R.id.widget_divider, android.view.View.INVISIBLE)
-                return
-            }
-
-            // Balance
-            views.setTextViewText(R.id.tv_balance, data.formattedBalance)
-
-            // Today cost
-            views.setTextViewText(R.id.tv_today_cost, "📊 今日 ${data.formattedTodayCost}")
-            views.setViewVisibility(R.id.widget_divider, android.view.View.VISIBLE)
-
-            // Token counts
-            if (data.todayInputTokens > 0 || data.todayOutputTokens > 0) {
-                views.setTextViewText(
-                    R.id.tv_input_tokens,
-                    "📝 输入 ${data.formattedInputTokens}"
-                )
-                views.setTextViewText(
-                    R.id.tv_output_tokens,
-                    "  ·  输出 ${data.formattedOutputTokens}"
-                )
+                views.setTextViewText(R.id.tv_balance, "⚠️ " + (data.error ?: "未知错误"))
             } else {
-                if (data.monthlyTokens > 0) {
-                    views.setTextViewText(
-                        R.id.tv_input_tokens,
-                        "📝 本月 ${WidgetDisplayData.formatTokenCount(data.monthlyTokens)}"
-                    )
-                } else {
-                    views.setTextViewText(R.id.tv_input_tokens, "📝 暂无用量数据")
-                }
-                views.setTextViewText(R.id.tv_output_tokens, "")
+                views.setTextViewText(R.id.tv_balance, data.formattedBalance)
             }
-
-            // Cache hit rate
-            views.setTextViewText(
-                R.id.tv_cache_rate,
-                "💾 缓存命中 ${data.formattedCacheHitRate}"
-            )
-
-            // Update time
-            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-            val dateFormat = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
-            val now = System.currentTimeMillis()
-            val updated = data.updatedAt
-            val timeStr = if (now - updated < 3600_000L) {
-                timeFormat.format(Date(updated))
-            } else {
-                dateFormat.format(Date(updated))
-            }
-            views.setTextViewText(R.id.tv_updated, "🕐 $timeStr")
         }
     }
 
