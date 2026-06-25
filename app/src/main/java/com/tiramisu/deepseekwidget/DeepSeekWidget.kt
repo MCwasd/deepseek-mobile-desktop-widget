@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.widget.RemoteViews
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -23,6 +24,15 @@ class DeepSeekWidget : AppWidgetProvider() {
         const val KEY_API_KEY = "api_key"
         const val ACTION_REFRESH = "com.tiramisu.deepseekwidget.ACTION_REFRESH"
         const val UPDATE_INTERVAL_MINUTES = 30L
+
+        // 缓存上次显示文本，避免 onUpdate 写 Hello Widget 覆盖
+        private const val DISPLAY_PREFS = "deepseek_widget_display"
+        private const val KEY_BALANCE_CACHE = "cached_balance"
+        private const val KEY_HAS_CACHE = "has_cache"
+
+        private fun getDisplayPrefs(context: Context): SharedPreferences {
+            return context.getSharedPreferences(DISPLAY_PREFS, Context.MODE_PRIVATE)
+        }
 
         /**
          * Read the stored API key.
@@ -96,22 +106,22 @@ class DeepSeekWidget : AppWidgetProvider() {
                 ComponentName(context, DeepSeekWidget::class.java)
             )
 
+            // 保存到缓存
+            val editor = getDisplayPrefs(context).edit()
+            val displayText = if (data.error != null) {
+                "⚠️ " + (data.error ?: "未知错误")
+            } else {
+                data.formattedBalance
+            }
+            editor.putString(KEY_BALANCE_CACHE, displayText)
+            editor.putBoolean(KEY_HAS_CACHE, true)
+            editor.apply()
+
             for (id in ids) {
                 val views = RemoteViews(context.packageName, R.layout.widget_layout)
-                populateViews(context, views, data)
+                views.setTextViewText(R.id.tv_balance, displayText)
                 setupClickRefresh(context, views)
                 manager.updateAppWidget(id, views)
-            }
-        }
-
-        /**
-         * Populate RemoteViews with widget data.
-         */
-        private fun populateViews(context: Context, views: RemoteViews, data: WidgetDisplayData) {
-            if (data.error != null) {
-                views.setTextViewText(R.id.tv_balance, "⚠️ " + (data.error ?: "未知错误"))
-            } else {
-                views.setTextViewText(R.id.tv_balance, data.formattedBalance)
             }
         }
     }
@@ -123,11 +133,32 @@ class DeepSeekWidget : AppWidgetProvider() {
     ) {
         schedulePeriodicUpdate(context)
 
+        val prefs = getDisplayPrefs(context)
+        val hasCache = prefs.getBoolean(KEY_HAS_CACHE, false)
+        val cachedText = prefs.getString(KEY_BALANCE_CACHE, null)
+        val apiKey = getApiKey(context)
+
         for (id in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout)
-            views.setTextViewText(R.id.tv_balance, "Hello Widget!")
+
+            if (apiKey.isNullOrBlank()) {
+                // 无API Key → 引导配置
+                views.setTextViewText(R.id.tv_balance, "Hello Widget!")
+            } else if (hasCache && cachedText != null) {
+                // 有缓存 → 恢复上次显示（不闪Hello）
+                views.setTextViewText(R.id.tv_balance, cachedText)
+            } else {
+                // 首次启动/无缓存 → 显示刷新中
+                views.setTextViewText(R.id.tv_balance, "⟳ 刷新中...")
+            }
+
             setupClickRefresh(context, views)
             appWidgetManager.updateAppWidget(id, views)
+        }
+
+        // 有API Key时始终触发Worker刷新
+        if (!apiKey.isNullOrBlank()) {
+            triggerImmediateUpdate(context)
         }
     }
 
