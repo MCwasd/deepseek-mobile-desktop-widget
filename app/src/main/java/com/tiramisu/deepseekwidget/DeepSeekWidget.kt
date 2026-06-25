@@ -11,6 +11,9 @@ import android.widget.RemoteViews
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.work.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -21,172 +24,152 @@ class DeepSeekWidget : AppWidgetProvider() {
 
     companion object {
         const val PREFS_NAME = "deepseek_widget_prefs"
-        const val KEY_API_KEY = "api_key"
+        const val KEY_API_KEY = "***"
         const val ACTION_REFRESH = "com.tiramisu.deepseekwidget.ACTION_REFRESH"
         const val UPDATE_INTERVAL_MINUTES = 30L
 
-        // 缓存上次显示文本，避免 onUpdate 写 Hello Widget 覆盖
+        // 缓存所有显示文本，避免 onUpdate 覆盖
         private const val DISPLAY_PREFS = "deepseek_widget_display"
-        private const val KEY_BALANCE_CACHE = "cached_balance"
         private const val KEY_HAS_CACHE = "has_cache"
+        private const val KEY_BALANCE = "bal"
+        private const val KEY_TODAY = "today"
+        private const val KEY_TIME = "time"
+        private const val KEY_INPUT = "in"
+        private const val KEY_OUTPUT = "out"
+        private const val KEY_CACHE = "cache"
 
-        private fun getDisplayPrefs(context: Context): SharedPreferences {
+        private fun prefs(context: Context): SharedPreferences {
             return context.getSharedPreferences(DISPLAY_PREFS, Context.MODE_PRIVATE)
         }
 
-        /**
-         * Read the stored API key.
-         */
+        private fun saveAll(context: Context, bal: String, today: String, time: String,
+                            input: String, output: String, cache: String) {
+            prefs(context).edit()
+                .putString(KEY_BALANCE, bal)
+                .putString(KEY_TODAY, today)
+                .putString(KEY_TIME, time)
+                .putString(KEY_INPUT, input)
+                .putString(KEY_OUTPUT, output)
+                .putString(KEY_CACHE, cache)
+                .putBoolean(KEY_HAS_CACHE, true)
+                .apply()
+        }
+
+        private fun applyCached(views: RemoteViews, ctx: Context) {
+            val p = prefs(ctx)
+            views.setTextViewText(R.id.tv_balance, p.getString(KEY_BALANCE, "¥0.00") ?: "¥0.00")
+            val today = p.getString(KEY_TODAY, null)
+            if (today != null) views.setTextViewText(R.id.tv_today_cost, today)
+            val time = p.getString(KEY_TIME, null)
+            if (time != null) views.setTextViewText(R.id.tv_updated, time)
+            val input = p.getString(KEY_INPUT, null)
+            if (input != null) views.setTextViewText(R.id.tv_input_tokens, input)
+            val output = p.getString(KEY_OUTPUT, null)
+            if (output != null) views.setTextViewText(R.id.tv_output_tokens, output)
+            val cache = p.getString(KEY_CACHE, null)
+            if (cache != null) views.setTextViewText(R.id.tv_cache_rate, cache)
+        }
+
         fun getApiKey(context: Context): String? {
             return try {
-                val masterKey = MasterKey.Builder(context)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build()
-                val prefs = EncryptedSharedPreferences.create(
-                    context,
-                    PREFS_NAME,
-                    masterKey,
+                val mk = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+                val p = EncryptedSharedPreferences.create(context, PREFS_NAME, mk,
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                )
-                prefs.getString(KEY_API_KEY, null)
-            } catch (e: Exception) {
-                null
-            }
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
+                p.getString(KEY_API_KEY, null)
+            } catch (_: Exception) { null }
         }
 
-        /**
-         * Store the API key securely.
-         */
         fun setApiKey(context: Context, apiKey: String) {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            val prefs = EncryptedSharedPreferences.create(
-                context,
-                PREFS_NAME,
-                masterKey,
+            val mk = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+            val p = EncryptedSharedPreferences.create(context, PREFS_NAME, mk,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-            prefs.edit().putString(KEY_API_KEY, apiKey).apply()
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
+            p.edit().putString(KEY_API_KEY, apiKey).apply()
         }
 
-        /**
-         * Set up click-to-refresh on the widget container.
-         */
         fun setupClickRefresh(context: Context, views: RemoteViews) {
-            val refreshIntent = Intent(context, DeepSeekWidget::class.java).apply {
-                action = ACTION_REFRESH
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context, 0, refreshIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+            val intent = Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_REFRESH }
+            val pi = PendingIntent.getBroadcast(context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(R.id.widget_container, pi)
         }
 
-        /**
-         * Trigger an immediate one-time worker run.
-         */
         fun triggerImmediateUpdate(context: Context) {
-            val request = OneTimeWorkRequestBuilder<WidgetUpdateWorker>()
-                .setConstraints(Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .build()
-            WorkManager.getInstance(context).enqueue(request)
+            WorkManager.getInstance(context).enqueue(
+                OneTimeWorkRequestBuilder<WidgetUpdateWorker>()
+                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                    .build()
+            )
         }
 
-        /**
-         * Update all widget instances with fresh data and set up click-to-refresh.
-         */
         fun updateWidgets(context: Context, data: WidgetDisplayData) {
-            val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(
-                ComponentName(context, DeepSeekWidget::class.java)
-            )
+            val mgr = AppWidgetManager.getInstance(context)
+            val ids = mgr.getAppWidgetIds(ComponentName(context, DeepSeekWidget::class.java))
 
-            // 保存到缓存
-            val editor = getDisplayPrefs(context).edit()
-            val displayText = if (data.error != null) {
-                "⚠️ " + (data.error ?: "未知错误")
+            if (data.error != null) {
+                saveAll(context, "⚠️ ${data.error}", "📊 --", "🕐 --:--", "📝 --", "· 输出 --", "💾 --")
             } else {
-                data.formattedBalance
+                val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(data.updatedAt))
+                saveAll(context,
+                    data.formattedBalance,
+                    "📊 ¥${data.todayCost}",
+                    "🕐 $timeStr",
+                    "📝 ${data.formattedInputTokens}",
+                    "· 输出 ${data.formattedOutputTokens}",
+                    "💾 ${data.formattedCacheHitRate}")
             }
-            editor.putString(KEY_BALANCE_CACHE, displayText)
-            editor.putBoolean(KEY_HAS_CACHE, true)
-            editor.apply()
 
             for (id in ids) {
                 val views = RemoteViews(context.packageName, R.layout.widget_layout)
-                views.setTextViewText(R.id.tv_balance, displayText)
+                applyCached(views, context)
                 setupClickRefresh(context, views)
-                manager.updateAppWidget(id, views)
+                mgr.updateAppWidget(id, views)
             }
         }
     }
 
-    override fun onUpdate(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray
-    ) {
+    override fun onUpdate(context: Context, mgr: AppWidgetManager, appWidgetIds: IntArray) {
         schedulePeriodicUpdate(context)
-
-        val prefs = getDisplayPrefs(context)
-        val hasCache = prefs.getBoolean(KEY_HAS_CACHE, false)
-        val cachedText = prefs.getString(KEY_BALANCE_CACHE, null)
         val apiKey = getApiKey(context)
 
         for (id in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout)
 
             if (apiKey.isNullOrBlank()) {
-                // 无API Key → 引导配置
                 views.setTextViewText(R.id.tv_balance, "Hello Widget!")
-            } else if (hasCache && cachedText != null) {
-                // 有缓存 → 恢复上次显示（不闪Hello）
-                views.setTextViewText(R.id.tv_balance, cachedText)
+            } else if (prefs(context).getBoolean(KEY_HAS_CACHE, false)) {
+                applyCached(views, context)
             } else {
-                // 首次启动/无缓存 → 显示刷新中
                 views.setTextViewText(R.id.tv_balance, "⟳ 刷新中...")
             }
 
             setupClickRefresh(context, views)
-            appWidgetManager.updateAppWidget(id, views)
+            mgr.updateAppWidget(id, views)
         }
 
-        // 有API Key时始终触发Worker刷新
-        if (!apiKey.isNullOrBlank()) {
-            triggerImmediateUpdate(context)
-        }
+        if (!apiKey.isNullOrBlank()) triggerImmediateUpdate(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH) {
-            val apiKey = getApiKey(context)
-            if (!apiKey.isNullOrBlank()) {
-                // Show loading state immediately
-                val manager = AppWidgetManager.getInstance(context)
-                val ids = manager.getAppWidgetIds(
-                    ComponentName(context, DeepSeekWidget::class.java)
-                )
-                for (id in ids) {
-                    val views = RemoteViews(context.packageName, R.layout.widget_layout)
-                    views.setTextViewText(R.id.tv_balance, "⟳ 刷新中...")
-                    setupClickRefresh(context, views)
-                    manager.updateAppWidget(id, views)
-                }
-                triggerImmediateUpdate(context)
-            }
+        if (intent.action != ACTION_REFRESH) return
+        val apiKey = getApiKey(context)
+        if (apiKey.isNullOrBlank()) return
+
+        val mgr = AppWidgetManager.getInstance(context)
+        val ids = mgr.getAppWidgetIds(ComponentName(context, DeepSeekWidget::class.java))
+        for (id in ids) {
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            applyCached(views, context) // 保留其他数据
+            views.setTextViewText(R.id.tv_balance, "⟳ 刷新中...") // 仅余额变加载
+            setupClickRefresh(context, views)
+            mgr.updateAppWidget(id, views)
         }
+        triggerImmediateUpdate(context)
     }
 
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        schedulePeriodicUpdate(context)
-    }
+    override fun onEnabled(context: Context) { super.onEnabled(context); schedulePeriodicUpdate(context) }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
@@ -194,28 +177,15 @@ class DeepSeekWidget : AppWidgetProvider() {
     }
 
     private fun schedulePeriodicUpdate(context: Context) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val request = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
-            UPDATE_INTERVAL_MINUTES, TimeUnit.MINUTES
-        )
-            .setConstraints(constraints)
-            .setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
-                10000L,
-                TimeUnit.MILLISECONDS
-            )
-            .build()
-
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WIDGET_UPDATE_WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
-            request
+            PeriodicWorkRequestBuilder<WidgetUpdateWorker>(UPDATE_INTERVAL_MINUTES, TimeUnit.MINUTES)
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10000L, TimeUnit.MILLISECONDS)
+                .build()
         )
     }
 }
 
-// WorkManager work name — needs to be accessible from the worker
 const val WIDGET_UPDATE_WORK_NAME = "deepseek_widget_update"

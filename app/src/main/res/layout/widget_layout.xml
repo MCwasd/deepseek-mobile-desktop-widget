@@ -1,24 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Step 1: LinearLayout 容器 + 仅 tv_balance -->
+<!-- 简洁布局：余额+费用+Token信息，纵向排列 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
+    android:gravity="center"
+    android:orientation="vertical"
     android:padding="12dp"
     android:background="@drawable/widget_bg">
 
     <TextView
         android:id="@+id/tv_balance"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello Widget"
-        android:textSize="28sp"
+        android:text="¥0.00"
+        android:textSize="24sp"
         android:textColor="@color/balance_text"
         android:textStyle="bold"
-        android:gravity="center"
         android:lines="1"
         android:ellipsize="end" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp">
+
+        <TextView
+            android:id="@+id/tv_today_cost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📊 ¥0"
+            android:textSize="11sp"
+            android:textColor="@color/label_text"
+            android:lines="1" />
+
+        <TextView
+            android:id="@+id/tv_updated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="· 🕐 --:--"
+            android:textSize="11sp"
+            android:textColor="@color/sub_text"
+            android:layout_marginStart="4dp"
+            android:lines="1" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="2dp">
+
+        <TextView
+            android:id="@+id/tv_input_tokens"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📝 --"
+            android:textSize="11sp"
+            android:textColor="@color/label_text"
+            android:lines="1" />
+
+        <TextView
+            android:id="@+id/tv_output_tokens"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="· 输出 --"
+            android:textSize="11sp"
+            android:textColor="@color/label_text"
+            android:layout_marginStart="2dp"
+            android:lines="1" />
+
+        <TextView
+            android:id="@+id/tv_cache_rate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="· 💾 --"
+            android:textSize="11sp"
+            android:textColor="@color/cache_text"
+            android:layout_marginStart="4dp"
+            android:lines="1" />
+
+    </LinearLayout>
 
 </LinearLayout>
