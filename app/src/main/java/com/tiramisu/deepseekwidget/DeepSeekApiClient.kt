@@ -140,7 +140,8 @@ class DeepSeekApiClient(private val token: String) {
                         // Only deepseek-v4-flash model
                         if (modelData.model != "deepseek-v4-flash") continue
                         for (u in modelData.usage ?: emptyList()) {
-                            val amt = (u.amount?.toDoubleOrNull() ?: 0.0).toLong()
+                            // Amount is in millions of tokens (e.g. 0.06 = 60K tokens)
+                            val amt = ((u.amount?.toDoubleOrNull() ?: 0.0) * 1_000_000).toLong()
                             when (u.type) {
                                 "PROMPT_TOKEN" -> inputTk += amt
                                 "PROMPT_CACHE_HIT_TOKEN" -> cacheHit += amt
@@ -170,6 +171,7 @@ class DeepSeekApiClient(private val token: String) {
                         for (modelData in todayDay.data ?: emptyList()) {
                             if (modelData.model != "deepseek-v4-flash") continue
                             for (u in modelData.usage ?: emptyList()) {
+                                // Cost amounts are already in CNY
                                 if (u.type == "PROMPT_CACHE_MISS_TOKEN" ||
                                     u.type == "RESPONSE_TOKEN") {
                                     todayCostTotal += u.amount?.toDoubleOrNull() ?: 0.0
