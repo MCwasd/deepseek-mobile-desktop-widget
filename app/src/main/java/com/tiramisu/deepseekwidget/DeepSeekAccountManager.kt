@@ -91,7 +91,6 @@ class DeepSeekAccountManager(context: Context) {
         if (!response.isSuccessful) {
             val bodyStr = response.body?.string() ?: ""
             throw when (response.code) {
-                401, 403 -> Exception("邮箱或密码错误")
                 429 -> Exception("登录请求过于频繁，请稍后再试")
                 else -> Exception("登录失败 (${response.code}): $bodyStr")
             }
@@ -99,7 +98,18 @@ class DeepSeekAccountManager(context: Context) {
 
         val body = response.body?.string() ?: throw Exception("登录响应为空")
         val loginResp = gson.fromJson(body, LoginResponse::class.java)
-        val token = loginResp.data?.bizData?.user?.token
+        val data = loginResp.data
+            ?: throw Exception("登录响应格式异常")
+
+        // Check biz_code: 0=success, other values indicate login failure
+        if (data.bizCode != 0) {
+            throw when (data.bizCode) {
+                2 -> Exception("邮箱或密码错误")
+                else -> Exception(data.bizMsg.ifBlank { "登录失败 (${data.bizCode})" })
+            }
+        }
+
+        val token = data.bizData?.user?.token
             ?: throw Exception("登录响应未包含 token")
 
         saveCredentials(email, password)
@@ -191,6 +201,8 @@ data class LoginResponse(
 )
 
 data class LoginData(
+    @SerializedName("biz_code") val bizCode: Int = -1,
+    @SerializedName("biz_msg") val bizMsg: String = "",
     @SerializedName("biz_data") val bizData: LoginBizData? = null
 )
 
