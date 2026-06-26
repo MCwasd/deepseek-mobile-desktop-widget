@@ -132,7 +132,7 @@ class DeepSeekApiClient(private val token: String) {
             val amountBody = execute("$AMOUNT_URL?month=$month&year=$year")
             Log.d("DS_AMOUNT", amountBody)
             val amountResp = gson.fromJson(amountBody, UsageAmountResponse::class.java)
-            val days = amountResp.data?.bizData
+            val days = amountResp.data?.bizData?.days
             if (days != null) {
                 val today = days.find { it.date == todayStr }
                 if (today != null) {
@@ -141,7 +141,7 @@ class DeepSeekApiClient(private val token: String) {
                         if (modelData.model != "deepseek-v4-flash") continue
                         for (u in modelData.usage ?: emptyList()) {
                             // Amount is in millions of tokens (e.g. 0.06 = 60K tokens)
-                            val amt = ((u.amount?.toDoubleOrNull() ?: 0.0) * 1_000_000).toLong()
+                            val amt = u.amount?.toLongOrNull() ?: 0L
                             when (u.type) {
                                 "PROMPT_TOKEN" -> inputTk += amt
                                 "PROMPT_CACHE_HIT_TOKEN" -> cacheHit += amt
@@ -263,7 +263,12 @@ data class UsageAmountResponse(
 data class UsageAmountData(
     @SerializedName("biz_code") val bizCode: Int = -1,
     @SerializedName("biz_msg") val bizMsg: String = "",
-    @SerializedName("biz_data") val bizData: List<DayUsage>? = null
+    @SerializedName("biz_data") val bizData: UsageAmountBizData? = null
+)
+
+data class UsageAmountBizData(
+    val total: List<ModelUsageList>? = null,
+    val days: List<DayUsage>? = null
 )
 
 data class DayUsage(
