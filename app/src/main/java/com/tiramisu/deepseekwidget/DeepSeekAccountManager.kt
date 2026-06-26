@@ -2,6 +2,7 @@ package com.tiramisu.deepseekwidget
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
@@ -10,7 +11,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
@@ -57,9 +57,11 @@ class DeepSeekAccountManager(context: Context) {
         )
     }
 
-    // Persist device_id so multiple logins use the same device identity
+    // device_id from browser packet capture — not random UUID!
+    // The web SDK generates a persistent device fingerprint (Base64).
+    // Hardcoded to match the real browser request for now.
     private val deviceId: String = encryptedPrefs.getString(KEY_DEVICE_ID, null) ?: run {
-        val id = UUID.randomUUID().toString()
+        val id = "BVq6rYPvnZX0QGXK0v+Mc+gBvP9jXPAaTeHPJtqTADSm8XQffeOj8x1BV7xSD2O0sPkcWFwduXevl6TUUKndExg=="
         encryptedPrefs.edit().putString(KEY_DEVICE_ID, id).apply()
         id
     }
@@ -83,7 +85,10 @@ class DeepSeekAccountManager(context: Context) {
             .url(LOGIN_URL)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
-            .header("User-Agent", "DeepSeekWidget/1.0")
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .header("x-client-platform", "web")
+            .header("x-client-version", "1.0.0")
+            .header("x-app-version", "1.0.0")
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -97,16 +102,16 @@ class DeepSeekAccountManager(context: Context) {
         }
 
         val body = response.body?.string() ?: throw Exception("登录响应为空")
+        Log.d("DS_LOGIN_RESP", body)
+
         val loginResp = gson.fromJson(body, LoginResponse::class.java)
         val data = loginResp.data
-            ?: throw Exception("登录响应格式异常")
+            ?: throw Exception("登录响应格式异常: $body")
 
         // Check biz_code: 0=success, other values indicate login failure
         if (data.bizCode != 0) {
-            throw when (data.bizCode) {
-                2 -> Exception("邮箱或密码错误")
-                else -> Exception(data.bizMsg.ifBlank { "登录失败 (${data.bizCode})" })
-            }
+            // Log full response body so we can see the real biz_msg
+            throw Exception("登录失败 (biz_code=${data.bizCode}, biz_msg=${data.bizMsg}): $body")
         }
 
         val token = data.bizData?.user?.token
@@ -185,11 +190,12 @@ class DeepSeekAccountManager(context: Context) {
 
 // ─── Request / Response DTOs ─────────────────────────────────────
 
+// Field order matches browser packet capture exactly: email, mobile, password, area_code, device_id, os
 data class LoginRequest(
     val email: String,
-    val password: String,
-    @SerializedName("area_code") val areaCode: String = "86",
     val mobile: String = "",
+    val password: String,
+    @SerializedName("area_code") val areaCode: String = "",
     @SerializedName("device_id") val deviceId: String,
     val os: String
 )
