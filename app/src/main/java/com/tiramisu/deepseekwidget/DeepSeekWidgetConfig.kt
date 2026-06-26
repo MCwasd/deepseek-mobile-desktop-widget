@@ -10,13 +10,17 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.work.*
-import java.util.concurrent.TimeUnit
 
 /**
  * Configuration activity shown when adding the widget to the desktop.
  *
- * The user enters their DeepSeek API Key, which is stored securely
- * using EncryptedSharedPreferences (AES-256-GCM).
+ * The user logs in with their DeepSeek platform email + password.
+ * On success, the Bearer Token is stored in EncryptedSharedPreferences.
+ *
+ * History pitfalls avoided:
+ * - Uses plain Activity, NOT AppCompatActivity (no AppCompat theme conflict)
+ * - Login runs on calling thread (not a coroutine) — matches WidgetUpdateWorker pattern
+ * - Token stored via EncryptedSharedPreferences, same as old API Key
  */
 class DeepSeekWidgetConfig : Activity() {
 
@@ -38,62 +42,67 @@ class DeepSeekWidgetConfig : Activity() {
             return
         }
 
-        // Set result to cancelled by default (user must save to confirm)
+        // Set result to cancelled by default (user must login to confirm)
         setResult(RESULT_CANCELED)
 
-        val etApiKey = findViewById<EditText>(R.id.et_api_key)
-        val btnSave = findViewById<Button>(R.id.btn_save)
+        val etEmail = findViewById<EditText>(R.id.et_email)
+        val etPassword = findViewById<EditText>(R.id.et_password)
+        val btnLogin = findViewById<Button>(R.id.btn_login)
         val btnCancel = findViewById<Button>(R.id.btn_cancel)
         val tvStatus = findViewById<TextView>(R.id.tv_config_status)
 
         // Pre-fill if already configured (re-configuring)
-        val existingKey = DeepSeekWidget.getApiKey(this)
-        if (!existingKey.isNullOrBlank()) {
-            etApiKey.setText(existingKey)
+        val accountManager = DeepSeekAccountManager(this)
+        val existingEmail = accountManager.loadEmail()
+        if (!existingEmail.isNullOrBlank()) {
+            etEmail.setText(existingEmail)
         }
 
-        btnSave.setOnClickListener {
-            val apiKey = etApiKey.text.toString().trim()
+        btnLogin.setOnClickListener {
+            val email = etEmail.text.toString().trim()
+            val password = etPassword.text.toString().trim()
 
-            if (apiKey.isBlank()) {
-                Toast.makeText(this, "请输入 API Key", Toast.LENGTH_SHORT).show()
+            if (email.isBlank()) {
+                Toast.makeText(this, "请输入邮箱", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            if (!apiKey.startsWith("sk-")) {
-                Toast.makeText(this, "API Key 格式错误，应以 sk- 开头", Toast.LENGTH_SHORT).show()
+            if (password.isBlank()) {
+                Toast.makeText(this, "请输入密码", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             // Show loading
-            tvStatus.text = "验证中..."
+            tvStatus.text = "登录验证中..."
             tvStatus.visibility = View.VISIBLE
-            btnSave.isEnabled = false
+            btnLogin.isEnabled = false
 
-            // Verify the API key by making a test request
-            saveAndConfigure(apiKey, tvStatus, btnSave)
+            // Login in background thread (same pattern as WidgetUpdateWorker — no coroutines)
+            Thread {
+                try {
+                    accountManager.login(email, password)
+
+                    // Back on UI thread to finish
+                    runOnUiThread {
+                        val resultValue = Intent().apply {
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        }
+                        setResult(RESULT_OK, resultValue)
+                        scheduleWork()
+                        finish()
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        tvStatus.text = "❌ ${e.message}"
+                        btnLogin.isEnabled = true
+                    }
+                }
+            }.start()
         }
 
         btnCancel.setOnClickListener {
             finish()
         }
-    }
-
-    private fun saveAndConfigure(
-        apiKey: String,
-        tvStatus: TextView,
-        btnSave: Button
-    ) {
-        // Just save the key and finish — widget will pick it up
-        DeepSeekWidget.setApiKey(this@DeepSeekWidgetConfig, apiKey)
-
-        val resultValue = Intent().apply {
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        }
-        setResult(RESULT_OK, resultValue)
-
-        scheduleWork()
-        finish()
     }
 
     private fun scheduleWork() {
@@ -102,7 +111,7 @@ class DeepSeekWidgetConfig : Activity() {
             .build()
         val request = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
             DeepSeekWidget.UPDATE_INTERVAL_MINUTES,
-            TimeUnit.MINUTES
+            java.util.concurrent.TimeUnit.MINUTES
         )
             .setConstraints(constraints)
             .build()

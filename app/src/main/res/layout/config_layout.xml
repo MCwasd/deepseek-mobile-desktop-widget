@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Configuration activity layout -->
+<!-- Configuration activity layout — email + password login instead of API Key -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -25,38 +25,52 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="配置 API Key"
+            android:text="登录 DeepSeek 账号"
             android:textSize="14sp"
             android:textColor="@color/sub_text"
             android:layout_marginTop="8dp" />
 
-        <!-- API Key Input -->
+        <!-- Email Input -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="DeepSeek API Key"
+            android:text="DeepSeek 邮箱"
             android:textSize="13sp"
             android:textColor="@color/label_text"
             android:layout_marginTop="32dp"
             android:layout_marginBottom="4dp" />
 
         <EditText
-            android:id="@+id/et_api_key"
+            android:id="@+id/et_email"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:hint="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            android:inputType="textVisiblePassword"
+            android:hint="your@email.com"
+            android:inputType="textEmailAddress"
             android:textSize="14sp"
             android:background="@android:drawable/edit_text"
-            android:paddingHorizontal="12dp" />
+            android:paddingHorizontal="12dp"
+            android:autofillHints="emailAddress" />
 
+        <!-- Password Input -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="在 platform.deepseek.com/api_keys 获取"
-            android:textSize="11sp"
-            android:textColor="@color/sub_text"
-            android:layout_marginTop="4dp" />
+            android:text="密码"
+            android:textSize="13sp"
+            android:textColor="@color/label_text"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/et_password"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="••••••••"
+            android:inputType="textPassword"
+            android:textSize="14sp"
+            android:background="@android:drawable/edit_text"
+            android:paddingHorizontal="12dp"
+            android:autofillHints="password" />
 
         <!-- Status -->
         <TextView
@@ -87,11 +101,11 @@
                 style="?android:attr/buttonStyle" />
 
             <Button
-                android:id="@+id/btn_save"
+                android:id="@+id/btn_login"
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
-                android:text="保存并验证"
+                android:text="登录并验证"
                 android:textSize="14sp"
                 android:layout_marginStart="8dp"
                 style="?android:attr/buttonStyle" />
@@ -102,7 +116,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="\n💡 用法提示：\n• API Key 加密存储在手机本地\n• 每 30 分钟自动刷新\n• 点击小组件可手动刷新\n• 数据直接拉取 DeepSeek 官方 API"
+            android:text="\n💡 说明：\n• 使用 DeepSeek 开放平台账号登录\n• 密码加密存储在手机本地\n• 登录后自动获取访问令牌\n• 令牌过期会自动重新登录\n• 每 30 分钟自动刷新用量数据\n• 点击小组件可手动刷新"
             android:textSize="12sp"
             android:textColor="@color/sub_text"
             android:layout_marginTop="32dp"
