@@ -178,6 +178,8 @@ class DeepSeekAccountManager(context: Context) {
 data class LoginRequest(
     val email: String,
     val password: String,
+    @SerializedName("area_code") val areaCode: String = "86",
+    val mobile: String = "",
     @SerializedName("device_id") val deviceId: String,
     val os: String
 )
