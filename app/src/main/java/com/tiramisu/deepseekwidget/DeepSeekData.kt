@@ -1,5 +1,9 @@
 package com.tiramisu.deepseekwidget
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 /**
  * Data models for DeepSeek API responses.
  */
@@ -30,6 +34,7 @@ data class UsageData(
     val costs: String = "0",              // Total cost this month (cents)
     val request_counts: String = "0",      // Total requests this month
     val today_costs: String = "0",         // Today's cost (cents)
+    val today_request_counts: String = "0", // Today's request count
     val input_tokens: String = "0",        // Today input tokens
     val output_tokens: String = "0",       // Today output tokens
     val cache_input_tokens: String = "0",  // Cached input tokens today
@@ -41,25 +46,18 @@ data class UsageData(
 // --- Widget Display Data ---
 
 data class WidgetDisplayData(
-    val totalBalance: String = "0.00",
-    val currency: String = "CNY",
     val isAvailable: Boolean = false,
     val todayCost: String = "0.00",
     val todayInputTokens: Long = 0,
     val todayOutputTokens: Long = 0,
     val todayCacheTokens: Long = 0,
     val cacheHitRate: String = "--",
+    val todayRequests: Long = 0,
     val monthlyCost: String = "0.00",
     val monthlyTokens: Long = 0,
     val updatedAt: Long = 0L,
     val error: String? = null
 ) {
-    val formattedBalance: String
-        get() {
-            val symbol = if (currency == "CNY") "¥" else "$"
-            return "$symbol$totalBalance"
-        }
-
     val formattedTodayCost: String
         get() {
             if (todayCost == "0.00") return "¥0"
@@ -72,8 +70,26 @@ data class WidgetDisplayData(
     val formattedOutputTokens: String
         get() = formatTokenCount(todayOutputTokens)
 
+    val formattedCacheTokens: String
+        get() = formatTokenCount(todayCacheTokens)
+
     val formattedCacheHitRate: String
         get() = if (cacheHitRate == "--") "--" else "$cacheHitRate%"
+
+    val formattedMonthCost: String
+        get() {
+            if (monthlyCost == "0.00") return "¥0"
+            return "¥$monthlyCost"
+        }
+
+    val formattedMonthTokens: String
+        get() = formatTokenCount(monthlyTokens)
+
+    val formattedUpdatedTime: String
+        get() {
+            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+            return sdf.format(Date(updatedAt))
+        }
 
     companion object {
         fun formatTokenCount(count: Long): String {

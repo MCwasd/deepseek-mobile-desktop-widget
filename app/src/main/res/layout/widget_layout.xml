@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 简洁布局：余额+费用+Token信息，纵向排列 -->
+<!-- 余额+费用+Token信息，纵向排列 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
@@ -10,10 +10,20 @@
     android:background="@drawable/widget_bg">
 
     <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="DeepSeek 📊"
+        android:textSize="13sp"
+        android:textColor="@color/sub_text"
+        android:textStyle="bold"
+        android:lines="1" />
+
+    <TextView
         android:id="@+id/tv_balance"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="¥0.00"
+        android:text="⟳ 加载中..."
         android:textSize="24sp"
         android:textColor="@color/balance_text"
         android:textStyle="bold"
@@ -24,15 +34,25 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="4dp">
+        android:layout_marginTop="2dp">
 
         <TextView
             android:id="@+id/tv_today_cost"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📊 ¥0"
+            android:text="今日 ¥--"
             android:textSize="11sp"
             android:textColor="@color/label_text"
+            android:lines="1" />
+
+        <TextView
+            android:id="@+id/tv_requests"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="· 请求 --"
+            android:textSize="11sp"
+            android:textColor="@color/label_text"
+            android:layout_marginStart="4dp"
             android:lines="1" />
 
         <TextView
@@ -69,7 +89,7 @@
             android:text="· 输出 --"
             android:textSize="11sp"
             android:textColor="@color/label_text"
-            android:layout_marginStart="2dp"
+            android:layout_marginStart="4dp"
             android:lines="1" />
 
         <TextView

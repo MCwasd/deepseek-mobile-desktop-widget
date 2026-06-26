@@ -6,6 +6,9 @@ import androidx.work.WorkerParameters
 
 /**
  * WorkManager worker for periodic widget updates (every 30 min).
+ *
+ * Uses account Bearer Token (from email+password login) in preference to
+ * legacy API Key. If neither is configured, skips the update silently.
  */
 class WidgetUpdateWorker(
     appContext: Context,
@@ -13,13 +16,16 @@ class WidgetUpdateWorker(
 ) : Worker(appContext, params) {
 
     override fun doWork(): Result {
-        val apiKey = DeepSeekWidget.getApiKey(applicationContext)
-        if (apiKey.isNullOrBlank()) {
-            return Result.success() // No API key configured yet
+        // Try account token first, fall back to legacy API Key
+        val token = DeepSeekWidget.getTokenFromAccount(applicationContext)
+            ?: DeepSeekWidget.getApiKey(applicationContext)
+
+        if (token.isNullOrBlank()) {
+            return Result.success() // No auth configured yet
         }
 
         return try {
-            val client = DeepSeekApiClient(apiKey)
+            val client = DeepSeekApiClient(token)
             val data = client.fetchAll()
             DeepSeekWidget.updateWidgets(applicationContext, data)
             Result.success()
