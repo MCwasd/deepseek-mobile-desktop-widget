@@ -1,4 +1,4 @@
-# DeepSeek Dashboard Widget 📊
+# DeepSeek Dashboard Widget 📊 Under construction Now
 
 > 在 Android 桌面实时查看 DeepSeek API 余额
 > Real-time DeepSeek API balance on your Android home screen
