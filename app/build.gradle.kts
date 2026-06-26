@@ -17,6 +17,12 @@ android {
     compileSdk = 34
 
     signingConfigs {
+        create("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "debug"
+            keyPassword = "android"
+        }
         create("release") {
             storeFile = signingProps["storeFile"]?.let { file(it) }
             storePassword = signingProps["storePassword"] ?: "android"
@@ -37,6 +43,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
