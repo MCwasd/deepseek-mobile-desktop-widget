@@ -137,8 +137,8 @@ class DeepSeekApiClient(private val token: String) {
             if (days != null) {
                 val today = days.find { it.date == todayStr }
                 if (today != null) {
-                    for (modelData in today.data) {
-                        for (u in modelData.usage) {
+                    for (modelData in today.data ?: emptyList()) {
+                        for (u in modelData.usage ?: emptyList()) {
                             val amt = (u.amount?.toDoubleOrNull() ?: 0.0).toLong()
                             when (u.type) {
                                 "PROMPT_TOKEN" -> inputTk += amt
@@ -168,8 +168,8 @@ class DeepSeekApiClient(private val token: String) {
                     if (todayDay != null) {
                         // Sum costs across models for today
                         var todayCostTotal = 0.0
-                        for (modelData in todayDay.data) {
-                            for (u in modelData.usage) {
+                        for (modelData in todayDay.data ?: emptyList()) {
+                            for (u in modelData.usage ?: emptyList()) {
                                 if (u.type == "PROMPT_TOKEN" || u.type == "PROMPT_CACHE_MISS_TOKEN" ||
                                     u.type == "RESPONSE_TOKEN") {
                                     todayCostTotal += u.amount?.toDoubleOrNull() ?: 0.0
