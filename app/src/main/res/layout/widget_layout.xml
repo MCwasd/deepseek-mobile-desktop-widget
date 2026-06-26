@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 余额 + 今日用量完整面板 -->
+<!-- 余额 + DeepSeek V4 Flash 今日用量 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
@@ -31,7 +31,7 @@
         android:lines="1"
         android:ellipsize="end" />
 
-    <!-- 今日费用 + 请求数 + 时间 -->
+    <!-- 今日费用 + 更新时间 -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -48,16 +48,6 @@
             android:lines="1" />
 
         <TextView
-            android:id="@+id/tv_requests"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="· 请求 --"
-            android:textSize="11sp"
-            android:textColor="@color/label_text"
-            android:layout_marginStart="4dp"
-            android:lines="1" />
-
-        <TextView
             android:id="@+id/tv_updated"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -69,7 +59,7 @@
 
     </LinearLayout>
 
-    <!-- Token 明细 -->
+    <!-- DeepSeek V4 Flash Token 明细 -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -96,7 +86,7 @@
             android:lines="1" />
 
         <TextView
-            android:id="@+id/tv_cache_rate"
+            android:id="@+id/tv_cache_hit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="· 💾 --"

@@ -60,7 +60,7 @@ class DeepSeekApiClient(private val token: String) {
                 todayOutputTokens = today.outputTokens,
                 todayCacheHitTokens = today.cacheHitTokens,
                 todayCacheMissTokens = today.cacheMissTokens,
-                todayRequests = today.requests,
+                cacheHitRate = today.cacheHitRate,
                 monthlyCost = summary.monthlyCost,
                 monthlyTokens = summary.monthlyTokens,
                 updatedAt = System.currentTimeMillis()
@@ -113,7 +113,7 @@ class DeepSeekApiClient(private val token: String) {
         val outputTokens: Long = 0,
         val cacheHitTokens: Long = 0,
         val cacheMissTokens: Long = 0,
-        val requests: Long = 0
+        val cacheHitRate: String = "--"
     )
 
     private fun fetchTodayUsage(): TodayUsage {
@@ -126,7 +126,6 @@ class DeepSeekApiClient(private val token: String) {
         var outputTk = 0L
         var cacheHit = 0L
         var cacheMiss = 0L
-        var reqCount = 0L
 
         // --- usage/amount (token counts) ---
         try {
@@ -138,6 +137,8 @@ class DeepSeekApiClient(private val token: String) {
                 val today = days.find { it.date == todayStr }
                 if (today != null) {
                     for (modelData in today.data ?: emptyList()) {
+                        // Only deepseek-v4-flash model
+                        if (modelData.model != "deepseek-v4-flash") continue
                         for (u in modelData.usage ?: emptyList()) {
                             val amt = (u.amount?.toDoubleOrNull() ?: 0.0).toLong()
                             when (u.type) {
@@ -145,7 +146,6 @@ class DeepSeekApiClient(private val token: String) {
                                 "PROMPT_CACHE_HIT_TOKEN" -> cacheHit += amt
                                 "PROMPT_CACHE_MISS_TOKEN" -> cacheMiss += amt
                                 "RESPONSE_TOKEN" -> outputTk += amt
-                                "REQUEST" -> reqCount += amt
                             }
                         }
                     }
@@ -166,11 +166,11 @@ class DeepSeekApiClient(private val token: String) {
                 for (entry in bizData) {
                     val todayDay = entry.days?.find { it.date == todayStr }
                     if (todayDay != null) {
-                        // Sum costs across models for today
                         var todayCostTotal = 0.0
                         for (modelData in todayDay.data ?: emptyList()) {
+                            if (modelData.model != "deepseek-v4-flash") continue
                             for (u in modelData.usage ?: emptyList()) {
-                                if (u.type == "PROMPT_TOKEN" || u.type == "PROMPT_CACHE_MISS_TOKEN" ||
+                                if (u.type == "PROMPT_CACHE_MISS_TOKEN" ||
                                     u.type == "RESPONSE_TOKEN") {
                                     todayCostTotal += u.amount?.toDoubleOrNull() ?: 0.0
                                 }
@@ -184,7 +184,15 @@ class DeepSeekApiClient(private val token: String) {
             Log.w("DS_COST", "cost API failed", e)
         }
 
-        return TodayUsage(costStr, inputTk, outputTk, cacheHit, cacheMiss, reqCount)
+        // Calculate cache hit rate
+        val totalCache = cacheHit + cacheMiss
+        val hitRate = if (totalCache > 0) {
+            "%.1f".format((cacheHit.toDouble() / totalCache) * 100)
+        } else {
+            "--"
+        }
+
+        return TodayUsage(costStr, inputTk, outputTk, cacheHit, cacheMiss, hitRate)
     }
 
     // ─── HTTP helper ──────────────────────────────────────────

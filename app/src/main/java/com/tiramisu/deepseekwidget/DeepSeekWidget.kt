@@ -111,20 +111,18 @@ class DeepSeekWidget : AppWidgetProvider() {
                     views.setTextViewText(R.id.tv_title, "DeepSeek ⚠️")
                     views.setTextViewText(R.id.tv_balance, data.error ?: "未知错误")
                     views.setTextViewText(R.id.tv_today_cost, "")
-                    views.setTextViewText(R.id.tv_requests, "")
                     views.setTextViewText(R.id.tv_updated, "")
                     views.setTextViewText(R.id.tv_input_tokens, "")
                     views.setTextViewText(R.id.tv_output_tokens, "")
-                    views.setTextViewText(R.id.tv_cache_rate, "")
+                    views.setTextViewText(R.id.tv_cache_hit, "")
                 } else {
                     views.setTextViewText(R.id.tv_title, "DeepSeek 📊")
                     views.setTextViewText(R.id.tv_balance, data.formattedBalance)
                     views.setTextViewText(R.id.tv_today_cost, "今日 ¥${data.todayCost}")
-                    views.setTextViewText(R.id.tv_requests, "· 请求 ${data.todayRequests}")
                     views.setTextViewText(R.id.tv_updated, "· 🕐 ${data.formattedUpdatedTime}")
                     views.setTextViewText(R.id.tv_input_tokens, "📝 ${data.formattedInputTokens}")
                     views.setTextViewText(R.id.tv_output_tokens, "· 输出 ${data.formattedOutputTokens}")
-                    views.setTextViewText(R.id.tv_cache_rate, "· 💾 ${data.formattedCacheHitTokens}")
+                    views.setTextViewText(R.id.tv_cache_hit, "· 💾 ${data.formattedCacheHitRate}")
                 }
 
                 setupClickRefresh(context, views)

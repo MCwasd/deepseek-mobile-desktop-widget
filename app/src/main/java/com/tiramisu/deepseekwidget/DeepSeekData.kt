@@ -19,7 +19,7 @@ data class WidgetDisplayData(
     val todayOutputTokens: Long = 0,
     val todayCacheHitTokens: Long = 0,
     val todayCacheMissTokens: Long = 0,
-    val todayRequests: Long = 0,
+    val cacheHitRate: String = "--",
     val monthlyCost: String = "0.00",
     val monthlyTokens: Long = 0,
     val updatedAt: Long = 0L,
@@ -37,11 +37,8 @@ data class WidgetDisplayData(
     val formattedOutputTokens: String
         get() = formatTokenCount(todayOutputTokens)
 
-    val formattedCacheHitTokens: String
-        get() = formatTokenCount(todayCacheHitTokens)
-
-    val formattedCacheMissTokens: String
-        get() = formatTokenCount(todayCacheMissTokens)
+    val formattedCacheHitRate: String
+        get() = if (cacheHitRate == "--") "--" else "$cacheHitRate%"
 
     val formattedMonthCost: String
         get() = if (monthlyCost == "0.00") "¥0" else "¥$monthlyCost"
