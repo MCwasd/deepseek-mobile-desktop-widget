@@ -11,10 +11,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/**
- * HTTP client for fetching data from DeepSeek Platform APIs.
- * Uses Bearer token from login (not API Key).
- */
 class DeepSeekApiClient(private val token: String) {
 
     companion object {
@@ -44,25 +40,20 @@ class DeepSeekApiClient(private val token: String) {
         .header("x-app-version", "1.0.0")
         .build()
 
-    // ─── Main entry ────────────────────────────────────────────
-
     fun fetchAll(): WidgetDisplayData {
         try {
             val summary = fetchSummary()
             val today = fetchTodayUsage()
-            Log.d("DS_WIDGET", "summary=$summary, today=$today")
+            Log.d("DS_WIDGET", "summary=$summary, todayFlash=${today.flash}, todayPro=${today.pro}")
             return WidgetDisplayData(
                 isAvailable = true,
                 balance = summary.balance,
                 totalAvailableTokens = summary.totalAvailableTokens,
-                todayCost = today.cost,
-                todayInputTokens = today.inputTokens,
-                todayOutputTokens = today.outputTokens,
-                todayCacheHitTokens = today.cacheHitTokens,
-                todayCacheMissTokens = today.cacheMissTokens,
-                cacheHitRate = today.cacheHitRate,
+                todayCost = today.todayCostTotal,
                 monthlyCost = summary.monthlyCost,
                 monthlyTokens = summary.monthlyTokens,
+                flashData = today.flash,
+                proData = today.pro,
                 updatedAt = System.currentTimeMillis()
             )
         } catch (e: Exception) {
@@ -71,7 +62,7 @@ class DeepSeekApiClient(private val token: String) {
         }
     }
 
-    // ─── get_user_summary (余额 + 月统计) ────────────────────
+    // ─── get_user_summary ──────────────────────────────────────
 
     private data class SummaryResult(
         val balance: String = "0.00",
@@ -82,22 +73,17 @@ class DeepSeekApiClient(private val token: String) {
 
     private fun fetchSummary(): SummaryResult {
         val body = execute(SUMMARY_URL)
-        Log.d("DS_SUMMARY", body)
         val resp = gson.fromJson(body, SummaryResponse::class.java)
-        val biz = resp.data?.bizData ?: throw Exception("summary 数据为空: $body")
+        val biz = resp.data?.bizData ?: throw Exception("summary 数据为空")
 
-        // Parse primary wallet balance
         val balance = biz.normalWallets?.firstOrNull()?.let {
-            val b = it.balance?.toDoubleOrNull() ?: 0.0
-            "%.2f".format(b)
+            "%.2f".format(it.balance?.toDoubleOrNull() ?: 0.0)
         } ?: "0.00"
 
         val totalAvailableTokens = biz.totalAvailableTokenEstimation?.toLongOrNull() ?: 0L
 
-        // Parse monthly cost
         val monthlyCost = biz.monthlyCosts?.firstOrNull()?.let {
-            val a = it.amount?.toDoubleOrNull() ?: 0.0
-            "%.2f".format(a)
+            "%.2f".format(it.amount?.toDoubleOrNull() ?: 0.0)
         } ?: "0.00"
 
         val monthlyTokens = biz.monthlyTokenUsage?.toLongOrNull() ?: 0L
@@ -105,99 +91,98 @@ class DeepSeekApiClient(private val token: String) {
         return SummaryResult(balance, totalAvailableTokens, monthlyCost, monthlyTokens)
     }
 
-    // ─── usage/amount & usage/cost (今日明细) ─────────────────
+    // ─── 今日用量 ──────────────────────────────────────────────
 
-    private data class TodayUsage(
-        val cost: String = "0.00",
+    private data class TodayUsageResult(
+        val todayCostTotal: String = "0.00",
+        val flash: ModelData = ModelData(),
+        val pro: ModelData = ModelData()
+    )
+
+    private data class TokenBreakdown(
         val inputTokens: Long = 0,
         val outputTokens: Long = 0,
         val cacheHitTokens: Long = 0,
-        val cacheMissTokens: Long = 0,
-        val cacheHitRate: String = "--"
-    )
+        val cacheMissTokens: Long = 0
+    ) {
+        val totalTokens: Long get() = inputTokens + outputTokens + cacheHitTokens + cacheMissTokens
+        val cacheHitRate: String get() {
+            val total = cacheHitTokens + cacheMissTokens
+            return if (total > 0)
+                "%.1f".format((cacheHitTokens.toDouble() / total) * 100)
+            else "--"
+        }
+    }
 
-    private fun fetchTodayUsage(): TodayUsage {
+    private fun fetchTodayUsage(): TodayUsageResult {
         val month = String.format("%02d", cal.get(Calendar.MONTH) + 1)
         val year = cal.get(Calendar.YEAR).toString()
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-        var costStr = "0.00"
-        var inputTk = 0L
-        var outputTk = 0L
-        var cacheHit = 0L
-        var cacheMiss = 0L
+        var flashUsage = TokenBreakdown()
+        var proUsage = TokenBreakdown()
 
-        // --- usage/amount (token counts) ---
+        // usage/amount: token counts per model
         try {
-            val amountBody = execute("$AMOUNT_URL?month=$month&year=$year")
-            Log.d("DS_AMOUNT", amountBody)
-            val amountResp = gson.fromJson(amountBody, UsageAmountResponse::class.java)
-            val days = amountResp.data?.bizData?.days
-            if (days != null) {
-                val today = days.find { it.date == todayStr }
-                if (today != null) {
-                    for (modelData in today.data ?: emptyList()) {
-                        // Only deepseek-v4-flash model
-                        if (modelData.model != "deepseek-v4-flash") continue
-                        for (u in modelData.usage ?: emptyList()) {
-                            // Amount is in millions of tokens (e.g. 0.06 = 60K tokens)
-                            val amt = u.amount?.toLongOrNull() ?: 0L
-                            when (u.type) {
-                                "PROMPT_TOKEN" -> inputTk += amt
-                                "PROMPT_CACHE_HIT_TOKEN" -> cacheHit += amt
-                                "PROMPT_CACHE_MISS_TOKEN" -> cacheMiss += amt
-                                "RESPONSE_TOKEN" -> outputTk += amt
-                            }
+            val body = execute("$AMOUNT_URL?month=$month&year=$year")
+            val resp = gson.fromJson(body, UsageAmountResponse::class.java)
+            val days = resp.data?.bizData?.days ?: emptyList()
+            val today = days.find { it.date == todayStr }
+            if (today != null) {
+                for (md in today.data ?: emptyList()) {
+                    var inTk = 0L; var outTk = 0L; var hitTk = 0L; var missTk = 0L
+                    for (u in md.usage ?: emptyList()) {
+                        val amt = u.amount?.toLongOrNull() ?: 0L
+                        when (u.type) {
+                            "PROMPT_TOKEN" -> inTk += amt
+                            "PROMPT_CACHE_HIT_TOKEN" -> hitTk += amt
+                            "PROMPT_CACHE_MISS_TOKEN" -> missTk += amt
+                            "RESPONSE_TOKEN" -> outTk += amt
                         }
+                    }
+                    val breakdown = TokenBreakdown(inTk, outTk, hitTk, missTk)
+                    when (md.model) {
+                        "deepseek-v4-flash" -> flashUsage = breakdown
+                        "deepseek-v4-pro" -> proUsage = breakdown
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w("DS_AMOUNT", "amount API failed", e)
-        }
+        } catch (e: Exception) { Log.w("DS_API", "amount failed", e) }
 
-        // --- usage/cost (cost in CNY) ---
+        // usage/cost: per-model cost amounts
+        // The cost endpoint's daily amounts are in CNY (decimal)
+        var flashCost = 0.0; var proCost = 0.0
         try {
-            val costBody = execute("$COST_URL?month=$month&year=$year")
-            Log.d("DS_COST", costBody)
-            val costResp = gson.fromJson(costBody, UsageCostResponse::class.java)
-            val bizData = costResp.data?.bizData
-            if (bizData != null && bizData.isNotEmpty()) {
-                // Find today's entry
-                for (entry in bizData) {
-                    val todayDay = entry.days?.find { it.date == todayStr }
-                    if (todayDay != null) {
-                        var todayCostTotal = 0.0
-                        for (modelData in todayDay.data ?: emptyList()) {
-                            if (modelData.model != "deepseek-v4-flash") continue
-                            for (u in modelData.usage ?: emptyList()) {
-                                // Cost amounts are already in CNY
-                                if (u.type == "PROMPT_CACHE_MISS_TOKEN" ||
-                                    u.type == "RESPONSE_TOKEN") {
-                                    todayCostTotal += u.amount?.toDoubleOrNull() ?: 0.0
-                                }
-                            }
+            val body = execute("$COST_URL?month=$month&year=$year")
+            val resp = gson.fromJson(body, UsageCostResponse::class.java)
+            val entry = resp.data?.bizData?.firstOrNull()
+            val todayDay = entry?.days?.find { it.date == todayStr }
+            if (todayDay != null) {
+                for (md in todayDay.data ?: emptyList()) {
+                    var modelCost = 0.0
+                    for (u in md.usage ?: emptyList()) {
+                        if (u.type == "PROMPT_CACHE_MISS_TOKEN" || u.type == "RESPONSE_TOKEN") {
+                            modelCost += u.amount?.toDoubleOrNull() ?: 0.0
                         }
-                        costStr = "%.2f".format(todayCostTotal)
+                    }
+                    when (md.model) {
+                        "deepseek-v4-flash" -> flashCost += modelCost
+                        "deepseek-v4-pro" -> proCost += modelCost
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w("DS_COST", "cost API failed", e)
-        }
+        } catch (e: Exception) { Log.w("DS_API", "cost failed", e) }
 
-        // Calculate cache hit rate
-        val totalCache = cacheHit + cacheMiss
-        val hitRate = if (totalCache > 0) {
-            "%.1f".format((cacheHit.toDouble() / totalCache) * 100)
-        } else {
-            "--"
-        }
+        val totalCost = flashCost + proCost
 
-        return TodayUsage(costStr, inputTk, outputTk, cacheHit, cacheMiss, hitRate)
+        return TodayUsageResult(
+            todayCostTotal = "%.2f".format(totalCost),
+            flash = ModelData(flashUsage.totalTokens, flashUsage.cacheHitRate, "%.2f".format(flashCost)),
+            pro = ModelData(proUsage.totalTokens, proUsage.cacheHitRate, "%.2f".format(proCost))
+        )
     }
 
-    // ─── HTTP helper ──────────────────────────────────────────
+    // ─── HTTP ─────────────────────────────────────────────────
 
     private fun execute(url: String): String {
         val request = buildRequest(url)
@@ -215,8 +200,6 @@ class DeepSeekApiClient(private val token: String) {
 // ═══════════════════════════════════════════════════════════════
 //  Response DTOs
 // ═══════════════════════════════════════════════════════════════
-
-// ── get_user_summary ───────────────────────────────────────────
 
 data class SummaryResponse(
     val code: Int = -1,

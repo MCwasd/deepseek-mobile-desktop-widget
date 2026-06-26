@@ -14,14 +14,18 @@ import androidx.work.*
 import java.util.concurrent.TimeUnit
 
 /**
- * Main widget provider for DeepSeek Dashboard.
+ * DeepSeek Dashboard Widget
  *
- * Two view pages, tap to cycle:
- *   Page 0: Overview — balance, today/month cost, tokens
- *   Page 1: Token detail — V4 Flash prompt/output/cache breakdown
- *
- * Tap anywhere on the widget to switch pages.
- * Data auto-refreshes every 30 min via WorkManager.
+ * Layout:
+ *   ┌────────────────────────────────┐
+ *   │ DeepSeek              09:21    │ ← top section: tap to refresh
+ *   │ ¥82.35                         │
+ *   │ Today ¥2.31    Month ¥68.24    │
+ *   ├────────────────────────────────┤
+ *   │ Flash ›                        │ ← bottom section: tap to switch model
+ *   │ 4.82M    91.3%    ¥2.31        │
+ *   │ Token    Cache    Cost         │
+ *   └────────────────────────────────┘
  */
 class DeepSeekWidget : AppWidgetProvider() {
 
@@ -29,25 +33,25 @@ class DeepSeekWidget : AppWidgetProvider() {
         const val PREFS_NAME = "deepseek_widget_prefs"
         const val KEY_API_KEY = "***"
         const val ACTION_REFRESH = "com.tiramisu.deepseekwidget.ACTION_REFRESH"
-        const val ACTION_CYCLE_VIEW = "com.tiramisu.deepseekwidget.ACTION_CYCLE_VIEW"
+        const val ACTION_CYCLE_MODEL = "com.tiramisu.deepseekwidget.ACTION_CYCLE_MODEL"
         const val UPDATE_INTERVAL_MINUTES = 30L
 
         private const val DISPLAY_PREFS = "deepseek_widget_display"
         private const val KEY_CACHED = "cached_text"
         private const val KEY_HAS_CACHE = "has_cache"
-        private const val KEY_CURRENT_VIEW = "current_view"
-        private const val KEY_CACHED_DATA = "cached_data_json"
+        private const val KEY_CURRENT_MODEL = "current_model" // 0=flash, 1=pro
 
         private fun prefs(context: Context): SharedPreferences =
             context.getSharedPreferences(DISPLAY_PREFS, Context.MODE_PRIVATE)
 
-        // ─── View page state ───────────────────────────────────
+        // ─── Model toggle state ─────────────────────────────────
 
-        fun getCurrentView(context: Context): Int =
-            prefs(context).getInt(KEY_CURRENT_VIEW, 0)
+        private fun getCurrentModel(context: Context): Int =
+            prefs(context).getInt(KEY_CURRENT_MODEL, 0)
 
-        fun setCurrentView(context: Context, view: Int) {
-            prefs(context).edit().putInt(KEY_CURRENT_VIEW, view).apply()
+        private fun cycleModel(context: Context) {
+            val cur = getCurrentModel(context)
+            prefs(context).edit().putInt(KEY_CURRENT_MODEL, if (cur == 0) 1 else 0).apply()
         }
 
         // ─── API Key storage (legacy) ──────────────────────────
@@ -70,7 +74,7 @@ class DeepSeekWidget : AppWidgetProvider() {
             p.edit().putString(KEY_API_KEY, apiKey).apply()
         }
 
-        // ─── Account-based auth ────────────────────────────────
+        // ─── Account auth ──────────────────────────────────────
 
         fun hasAccountCredentials(context: Context): Boolean =
             DeepSeekAccountManager(context).hasCredentials()
@@ -81,14 +85,7 @@ class DeepSeekWidget : AppWidgetProvider() {
         fun getAuthToken(context: Context): String? =
             getTokenFromAccount(context) ?: getApiKey(context)
 
-        // ─── Click handlers ────────────────────────────────────
-
-        fun setupClickCycle(context: Context, views: RemoteViews) {
-            val cycleIntent = Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_CYCLE_VIEW }
-            val pi = PendingIntent.getBroadcast(context, 1, cycleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.widget_container, pi)
-        }
+        // ─── Triggers ──────────────────────────────────────────
 
         fun triggerRefresh(context: Context) {
             WorkManager.getInstance(context).enqueue(
@@ -98,7 +95,7 @@ class DeepSeekWidget : AppWidgetProvider() {
             )
         }
 
-        // ─── Render widget ─────────────────────────────────────
+        // ─── Render ────────────────────────────────────────────
 
         fun updateWidgets(context: Context, data: WidgetDisplayData) {
             val mgr = AppWidgetManager.getInstance(context)
@@ -113,12 +110,22 @@ class DeepSeekWidget : AppWidgetProvider() {
                 if (data.error != null) {
                     renderError(views, data.error ?: "未知错误")
                 } else {
-                    val viewPage = getCurrentView(context)
-                    if (viewPage == 0) renderOverview(views, data)
-                    else renderTokenDetail(views, data)
+                    renderTop(context, views, data)
+                    renderBottom(context, views, data)
                 }
 
-                setupClickCycle(context, views)
+                // Top click → refresh
+                val refreshIntent = Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_REFRESH }
+                val refreshPi = PendingIntent.getBroadcast(context, 0, refreshIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                views.setOnClickPendingIntent(R.id.top_section, refreshPi)
+
+                // Bottom click → cycle model
+                val cycleIntent = Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_CYCLE_MODEL }
+                val cyclePi = PendingIntent.getBroadcast(context, 1, cycleIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                views.setOnClickPendingIntent(R.id.bottom_section, cyclePi)
+
                 mgr.updateAppWidget(id, views)
             }
         }
@@ -126,34 +133,31 @@ class DeepSeekWidget : AppWidgetProvider() {
         private fun renderError(views: RemoteViews, error: String) {
             views.setTextViewText(R.id.tv_title, "DeepSeek ⚠️")
             views.setTextViewText(R.id.tv_balance, error)
-            views.setTextViewText(R.id.tv_line2, "")
-            views.setTextViewText(R.id.tv_line3, "")
-            views.setTextViewText(R.id.tv_line4, "")
-            views.setTextViewText(R.id.tv_page_dot, "●   ○")
         }
 
-        /** Page 0: Overview — balance, costs, token summary */
-        private fun renderOverview(views: RemoteViews, data: WidgetDisplayData) {
-            views.setTextViewText(R.id.tv_title, "DeepSeek 📊  ·  🕐${data.formattedUpdatedTime}")
+        private fun renderTop(context: Context, views: RemoteViews, data: WidgetDisplayData) {
+            views.setTextViewText(R.id.tv_title, "DeepSeek")
+            views.setTextViewText(R.id.tv_refresh_time, data.formattedUpdatedTime)
             views.setTextViewText(R.id.tv_balance, data.formattedBalance)
-            views.setTextViewText(R.id.tv_line2, "今日 ¥${data.todayCost}    本月 ¥${data.monthlyCost}")
-            views.setTextViewText(R.id.tv_line3, "Token 已用 ${data.formattedMonthTokens} · 可用 ${data.formattedAvailableTokens}")
-            views.setTextViewText(R.id.tv_line4, "V4 Flash 💾 ${data.formattedCacheHitRate}")
-            views.setTextViewText(R.id.tv_page_dot, "●   ○")
+            views.setTextViewText(R.id.tv_today, "Today ${data.formattedTodayCost}")
+            views.setTextViewText(R.id.tv_month, "Month ${data.formattedMonthCost}")
         }
 
-        /** Page 1: Token detail — V4 Flash prompt/output/cache */
-        private fun renderTokenDetail(views: RemoteViews, data: WidgetDisplayData) {
-            views.setTextViewText(R.id.tv_title, "DeepSeek 📊  ·  🕐${data.formattedUpdatedTime}")
-            views.setTextViewText(R.id.tv_balance, "V4 Flash 今日")
-            views.setTextViewText(R.id.tv_line2, "📝 Prompt ${data.formattedInputTokens}  ·  输出 ${data.formattedOutputTokens}")
-            views.setTextViewText(R.id.tv_line3, "💾 Hit ${data.formattedCacheHitTokens}  ·  Miss ${data.formattedCacheMissTokens}")
-            views.setTextViewText(R.id.tv_line4, "命中率 ${data.formattedCacheHitRate}    今日 ¥${data.todayCost}")
-            views.setTextViewText(R.id.tv_page_dot, "○   ●")
+        private fun renderBottom(context: Context, views: RemoteViews, data: WidgetDisplayData) {
+            val isFlash = getCurrentModel(context) == 0
+            val model = if (isFlash) data.flashData else data.proData
+            val label = if (isFlash) "Flash ›" else "Pro ›"
+
+            views.setTextViewText(R.id.tv_model_label, label)
+            views.setTextViewText(R.id.tv_token, WidgetDisplayData.formatTokenCount(model.totalTokens))
+            views.setTextViewText(R.id.tv_cache_rate,
+                if (model.cacheHitRate == "--") "--" else "${model.cacheHitRate}%")
+            views.setTextViewText(R.id.tv_model_cost,
+                if (model.cost == "0.00") "¥0" else "¥${model.cost}")
         }
     }
 
-    // ─── Widget lifecycle ──────────────────────────────────────
+    // ─── Lifecycle ─────────────────────────────────────────────
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, appWidgetIds: IntArray) {
         schedulePeriodicUpdate(context)
@@ -163,16 +167,24 @@ class DeepSeekWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_layout)
 
             if (hasAuth && prefs(context).getBoolean(KEY_HAS_CACHE, false)) {
-                views.setTextViewText(R.id.tv_title, "DeepSeek 📊")
+                views.setTextViewText(R.id.tv_title, "DeepSeek")
                 views.setTextViewText(R.id.tv_balance,
                     prefs(context).getString(KEY_CACHED, "⟳ 刷新中...") ?: "⟳ 刷新中...")
             } else {
-                views.setTextViewText(R.id.tv_title, if (hasAuth) "DeepSeek 📊" else "DeepSeek ⚙️")
+                views.setTextViewText(R.id.tv_title, if (hasAuth) "DeepSeek" else "DeepSeek ⚙️")
                 views.setTextViewText(R.id.tv_balance, "⟳ 刷新中...")
             }
-            views.setTextViewText(R.id.tv_page_dot, "●   ○")
 
-            setupClickCycle(context, views)
+            val refreshPi = PendingIntent.getBroadcast(context, 0,
+                Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_REFRESH },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(R.id.top_section, refreshPi)
+
+            val cyclePi = PendingIntent.getBroadcast(context, 1,
+                Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_CYCLE_MODEL },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(R.id.bottom_section, cyclePi)
+
             mgr.updateAppWidget(id, views)
         }
 
@@ -182,25 +194,31 @@ class DeepSeekWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
-        if (intent.action == ACTION_CYCLE_VIEW) {
-            val current = getCurrentView(context)
-            val next = if (current == 0) 1 else 0
-            setCurrentView(context, next)
+        if (intent.action == ACTION_CYCLE_MODEL) {
+            cycleModel(context)
 
-            // Re-render with cached data
+            // Re-render with cached data by triggering refresh
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, DeepSeekWidget::class.java))
             for (id in ids) {
                 val views = RemoteViews(context.packageName, R.layout.widget_layout)
-                views.setTextViewText(R.id.tv_title, if (next == 0) "DeepSeek 📊" else "DeepSeek 🔄")
+                views.setTextViewText(R.id.tv_title, "DeepSeek")
                 views.setTextViewText(R.id.tv_balance,
-                    prefs(context).getString(KEY_CACHED, "⟳ 刷新中...") ?: "⟳ 刷新中...")
-                views.setTextViewText(R.id.tv_page_dot, if (next == 0) "●   ○" else "○   ●")
-                setupClickCycle(context, views)
+                    prefs(context).getString(KEY_CACHED, "") ?: "")
+
+                val refreshPi = PendingIntent.getBroadcast(context, 0,
+                    Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_REFRESH },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                views.setOnClickPendingIntent(R.id.top_section, refreshPi)
+
+                val cyclePi = PendingIntent.getBroadcast(context, 1,
+                    Intent(context, DeepSeekWidget::class.java).apply { action = ACTION_CYCLE_MODEL },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                views.setOnClickPendingIntent(R.id.bottom_section, cyclePi)
+
                 mgr.updateAppWidget(id, views)
             }
 
-            // Refresh data in background
             if (getAuthToken(context) != null) triggerRefresh(context)
             return
         }

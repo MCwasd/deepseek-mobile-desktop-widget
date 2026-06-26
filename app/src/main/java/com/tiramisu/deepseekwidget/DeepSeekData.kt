@@ -8,43 +8,28 @@ import java.util.Locale
  * Data models for DeepSeek API responses.
  */
 
-// ─── Widget Display Data ─────────────────────────────────────
+data class ModelData(
+    val totalTokens: Long = 0,
+    val cacheHitRate: String = "--",
+    val cost: String = "0.00"
+)
 
 data class WidgetDisplayData(
     val isAvailable: Boolean = false,
     val balance: String = "0.00",
     val totalAvailableTokens: Long = 0,
     val todayCost: String = "0.00",
-    val todayInputTokens: Long = 0,
-    val todayOutputTokens: Long = 0,
-    val todayCacheHitTokens: Long = 0,
-    val todayCacheMissTokens: Long = 0,
-    val cacheHitRate: String = "--",
     val monthlyCost: String = "0.00",
     val monthlyTokens: Long = 0,
+    val flashData: ModelData = ModelData(),
+    val proData: ModelData = ModelData(),
     val updatedAt: Long = 0L,
     val error: String? = null
 ) {
-    val formattedBalance: String
-        get() = "¥$balance"
+    val formattedBalance: String get() = "¥$balance"
 
     val formattedTodayCost: String
         get() = if (todayCost == "0.00") "¥0" else "¥$todayCost"
-
-    val formattedInputTokens: String
-        get() = formatTokenCount(todayInputTokens)
-
-    val formattedOutputTokens: String
-        get() = formatTokenCount(todayOutputTokens)
-
-    val formattedCacheHitTokens: String
-        get() = formatTokenCount(todayCacheHitTokens)
-
-    val formattedCacheMissTokens: String
-        get() = formatTokenCount(todayCacheMissTokens)
-
-    val formattedCacheHitRate: String
-        get() = if (cacheHitRate == "--") "--" else "$cacheHitRate%"
 
     val formattedMonthCost: String
         get() = if (monthlyCost == "0.00") "¥0" else "¥$monthlyCost"
