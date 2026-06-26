@@ -8,61 +8,28 @@ import java.util.Locale
  * Data models for DeepSeek API responses.
  */
 
-// --- Balance API (/user/balance) ---
-
-data class BalanceResponse(
-    val is_available: Boolean = false,
-    val balance_infos: List<BalanceInfo>? = null
-)
-
-data class BalanceInfo(
-    val currency: String = "CNY",
-    val total_balance: String = "0.00",
-    val granted_balance: String = "0.00",
-    val topped_up_balance: String = "0.00"
-)
-
-// --- Usage Summary API (/api/v0/users/get_user_summary) ---
-
-data class UsageSummaryResponse(
-    val code: Int = -1,
-    val msg: String = "",
-    val data: UsageData? = null
-)
-
-data class UsageData(
-    val costs: String = "0",              // Total cost this month (cents)
-    val request_counts: String = "0",      // Total requests this month
-    val today_costs: String = "0",         // Today's cost (cents)
-    val today_request_counts: String = "0", // Today's request count
-    val input_tokens: String = "0",        // Today input tokens
-    val output_tokens: String = "0",       // Today output tokens
-    val cache_input_tokens: String = "0",  // Cached input tokens today
-    val month_input_tokens: String = "0",  // Monthly input tokens
-    val month_output_tokens: String = "0", // Monthly output tokens
-    val month_costs: String = "0"          // Monthly cost (cents)
-)
-
-// --- Widget Display Data ---
+// ─── Widget Display Data ─────────────────────────────────────
 
 data class WidgetDisplayData(
     val isAvailable: Boolean = false,
+    val balance: String = "0.00",
+    val totalAvailableTokens: Long = 0,
     val todayCost: String = "0.00",
     val todayInputTokens: Long = 0,
     val todayOutputTokens: Long = 0,
-    val todayCacheTokens: Long = 0,
-    val cacheHitRate: String = "--",
+    val todayCacheHitTokens: Long = 0,
+    val todayCacheMissTokens: Long = 0,
     val todayRequests: Long = 0,
     val monthlyCost: String = "0.00",
     val monthlyTokens: Long = 0,
     val updatedAt: Long = 0L,
     val error: String? = null
 ) {
+    val formattedBalance: String
+        get() = "¥$balance"
+
     val formattedTodayCost: String
-        get() {
-            if (todayCost == "0.00") return "¥0"
-            return "¥$todayCost"
-        }
+        get() = if (todayCost == "0.00") "¥0" else "¥$todayCost"
 
     val formattedInputTokens: String
         get() = formatTokenCount(todayInputTokens)
@@ -70,20 +37,20 @@ data class WidgetDisplayData(
     val formattedOutputTokens: String
         get() = formatTokenCount(todayOutputTokens)
 
-    val formattedCacheTokens: String
-        get() = formatTokenCount(todayCacheTokens)
+    val formattedCacheHitTokens: String
+        get() = formatTokenCount(todayCacheHitTokens)
 
-    val formattedCacheHitRate: String
-        get() = if (cacheHitRate == "--") "--" else "$cacheHitRate%"
+    val formattedCacheMissTokens: String
+        get() = formatTokenCount(todayCacheMissTokens)
 
     val formattedMonthCost: String
-        get() {
-            if (monthlyCost == "0.00") return "¥0"
-            return "¥$monthlyCost"
-        }
+        get() = if (monthlyCost == "0.00") "¥0" else "¥$monthlyCost"
 
     val formattedMonthTokens: String
         get() = formatTokenCount(monthlyTokens)
+
+    val formattedAvailableTokens: String
+        get() = formatTokenCount(totalAvailableTokens)
 
     val formattedUpdatedTime: String
         get() {

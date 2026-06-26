@@ -100,15 +100,14 @@ class DeepSeekWidget : AppWidgetProvider() {
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, DeepSeekWidget::class.java))
 
-            // Cache the error/status text for onUpdate restore
-            val statusText = if (data.error != null) "⚠️ ${data.error}" else data.formattedTodayCost
-            prefs(context).edit().putString(KEY_CACHED, statusText).putBoolean(KEY_HAS_CACHE, true).apply()
+            // Cache the balance text for onUpdate restore
+            val cacheText = if (data.error != null) "⚠️ ${data.error}" else data.formattedBalance
+            prefs(context).edit().putString(KEY_CACHED, cacheText).putBoolean(KEY_HAS_CACHE, true).apply()
 
             for (id in ids) {
                 val views = RemoteViews(context.packageName, R.layout.widget_layout)
 
                 if (data.error != null) {
-                    // Error state: show error on balance, hide details
                     views.setTextViewText(R.id.tv_title, "DeepSeek ⚠️")
                     views.setTextViewText(R.id.tv_balance, data.error ?: "未知错误")
                     views.setTextViewText(R.id.tv_today_cost, "")
@@ -119,13 +118,13 @@ class DeepSeekWidget : AppWidgetProvider() {
                     views.setTextViewText(R.id.tv_cache_rate, "")
                 } else {
                     views.setTextViewText(R.id.tv_title, "DeepSeek 📊")
-                    views.setTextViewText(R.id.tv_balance, data.formattedTodayCost)
+                    views.setTextViewText(R.id.tv_balance, data.formattedBalance)
                     views.setTextViewText(R.id.tv_today_cost, "今日 ¥${data.todayCost}")
                     views.setTextViewText(R.id.tv_requests, "· 请求 ${data.todayRequests}")
                     views.setTextViewText(R.id.tv_updated, "· 🕐 ${data.formattedUpdatedTime}")
                     views.setTextViewText(R.id.tv_input_tokens, "📝 ${data.formattedInputTokens}")
                     views.setTextViewText(R.id.tv_output_tokens, "· 输出 ${data.formattedOutputTokens}")
-                    views.setTextViewText(R.id.tv_cache_rate, "· 💾 ${data.formattedCacheHitRate}")
+                    views.setTextViewText(R.id.tv_cache_rate, "· 💾 ${data.formattedCacheHitTokens}")
                 }
 
                 setupClickRefresh(context, views)

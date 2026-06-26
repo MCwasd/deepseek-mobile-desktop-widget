@@ -6,6 +6,7 @@ import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -13,27 +14,19 @@ import java.util.concurrent.TimeUnit
 /**
  * HTTP client for fetching data from DeepSeek Platform APIs.
  * Uses Bearer token from login (not API Key).
- *
- * The phone talks to DeepSeek servers directly — no proxy needed.
- *
- * Endpoints:
- *   GET /api/v0/users/get_user_summary  — today/month stats
- *   GET /api/v0/usage/cost              — daily cost breakdown
- *   GET /api/v0/usage/amount            — token usage breakdown
- *   GET /api/v0/users/current           — account info (optional)
  */
 class DeepSeekApiClient(private val token: String) {
 
     companion object {
         private const val PLATFORM_BASE = "https://platform.deepseek.com"
-        private const val USAGE_SUMMARY_URL = "$PLATFORM_BASE/api/v0/users/get_user_summary"
-        private const val USAGE_COST_URL = "$PLATFORM_BASE/api/v0/usage/cost"
-        private const val USAGE_AMOUNT_URL = "$PLATFORM_BASE/api/v0/usage/amount"
-        private const val USER_CURRENT_URL = "$PLATFORM_BASE/api/v0/users/current"
+        private const val SUMMARY_URL = "$PLATFORM_BASE/api/v0/users/get_user_summary"
+        private const val COST_URL = "$PLATFORM_BASE/api/v0/usage/cost"
+        private const val AMOUNT_URL = "$PLATFORM_BASE/api/v0/usage/amount"
         private const val TIMEOUT_SECONDS = 15L
     }
 
     private val gson = Gson()
+    private val cal = Calendar.getInstance()
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -41,103 +34,259 @@ class DeepSeekApiClient(private val token: String) {
         .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
-    /**
-     * Fetch all widget data by combining multiple platform API calls.
-     * Not a suspend function — can be called from any thread.
-     */
+    private fun buildRequest(url: String): Request = Request.Builder()
+        .url(url)
+        .header("Authorization", "Bearer $token")
+        .header("Accept", "application/json")
+        .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+        .header("x-client-platform", "web")
+        .header("x-client-version", "1.0.0")
+        .header("x-app-version", "1.0.0")
+        .build()
+
+    // ─── Main entry ────────────────────────────────────────────
+
     fun fetchAll(): WidgetDisplayData {
         try {
-            val summary = fetchUsageSummary()
-            val now = System.currentTimeMillis()
-
-            val data = WidgetDisplayData(
+            val summary = fetchSummary()
+            val today = fetchTodayUsage()
+            Log.d("DS_WIDGET", "summary=$summary, today=$today")
+            return WidgetDisplayData(
                 isAvailable = true,
-                todayCost = summary.todayCost,
-                todayInputTokens = summary.inputTokens,
-                todayOutputTokens = summary.outputTokens,
-                todayCacheTokens = summary.cacheTokens,
-                cacheHitRate = summary.cacheHitRate,
-                todayRequests = summary.todayRequests,
+                balance = summary.balance,
+                totalAvailableTokens = summary.totalAvailableTokens,
+                todayCost = today.cost,
+                todayInputTokens = today.inputTokens,
+                todayOutputTokens = today.outputTokens,
+                todayCacheHitTokens = today.cacheHitTokens,
+                todayCacheMissTokens = today.cacheMissTokens,
+                todayRequests = today.requests,
                 monthlyCost = summary.monthlyCost,
                 monthlyTokens = summary.monthlyTokens,
-                updatedAt = now
+                updatedAt = System.currentTimeMillis()
             )
-            Log.d("DS_WIDGET_DATA", data.toString())
-            return data
         } catch (e: Exception) {
             Log.e("DS_API", "fetchAll failed", e)
             return WidgetDisplayData(error = e.message ?: "未知错误")
         }
     }
 
-    // ─── Usage Summary ────────────────────────────────────────
+    // ─── get_user_summary (余额 + 月统计) ────────────────────
 
-    private data class UsageSummary(
-        val todayCost: String = "0.00",
-        val inputTokens: Long = 0,
-        val outputTokens: Long = 0,
-        val cacheTokens: Long = 0,
-        val cacheHitRate: String = "--",
-        val todayRequests: Long = 0,
+    private data class SummaryResult(
+        val balance: String = "0.00",
+        val totalAvailableTokens: Long = 0,
         val monthlyCost: String = "0.00",
         val monthlyTokens: Long = 0
     )
 
-    private fun fetchUsageSummary(): UsageSummary {
-        val request = Request.Builder()
-            .url(USAGE_SUMMARY_URL)
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-            .build()
+    private fun fetchSummary(): SummaryResult {
+        val body = execute(SUMMARY_URL)
+        Log.d("DS_SUMMARY", body)
+        val resp = gson.fromJson(body, SummaryResponse::class.java)
+        val biz = resp.data?.bizData ?: throw Exception("summary 数据为空: $body")
 
+        // Parse primary wallet balance
+        val balance = biz.normalWallets?.firstOrNull()?.let {
+            val b = it.balance?.toDoubleOrNull() ?: 0.0
+            "%.2f".format(b)
+        } ?: "0.00"
+
+        val totalAvailableTokens = biz.totalAvailableTokenEstimation?.toLongOrNull() ?: 0L
+
+        // Parse monthly cost
+        val monthlyCost = biz.monthlyCosts?.firstOrNull()?.let {
+            val a = it.amount?.toDoubleOrNull() ?: 0.0
+            "%.2f".format(a)
+        } ?: "0.00"
+
+        val monthlyTokens = biz.monthlyTokenUsage?.toLongOrNull() ?: 0L
+
+        return SummaryResult(balance, totalAvailableTokens, monthlyCost, monthlyTokens)
+    }
+
+    // ─── usage/amount & usage/cost (今日明细) ─────────────────
+
+    private data class TodayUsage(
+        val cost: String = "0.00",
+        val inputTokens: Long = 0,
+        val outputTokens: Long = 0,
+        val cacheHitTokens: Long = 0,
+        val cacheMissTokens: Long = 0,
+        val requests: Long = 0
+    )
+
+    private fun fetchTodayUsage(): TodayUsage {
+        val month = String.format("%02d", cal.get(Calendar.MONTH) + 1)
+        val year = cal.get(Calendar.YEAR).toString()
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        var costStr = "0.00"
+        var inputTk = 0L
+        var outputTk = 0L
+        var cacheHit = 0L
+        var cacheMiss = 0L
+        var reqCount = 0L
+
+        // --- usage/amount (token counts) ---
+        try {
+            val amountBody = execute("$AMOUNT_URL?month=$month&year=$year")
+            Log.d("DS_AMOUNT", amountBody)
+            val amountResp = gson.fromJson(amountBody, UsageAmountResponse::class.java)
+            val days = amountResp.data?.bizData
+            if (days != null) {
+                val today = days.find { it.date == todayStr }
+                if (today != null) {
+                    for (modelData in today.data) {
+                        for (u in modelData.usage) {
+                            val amt = (u.amount?.toDoubleOrNull() ?: 0.0).toLong()
+                            when (u.type) {
+                                "PROMPT_TOKEN" -> inputTk += amt
+                                "PROMPT_CACHE_HIT_TOKEN" -> cacheHit += amt
+                                "PROMPT_CACHE_MISS_TOKEN" -> cacheMiss += amt
+                                "RESPONSE_TOKEN" -> outputTk += amt
+                                "REQUEST" -> reqCount += amt
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("DS_AMOUNT", "amount API failed", e)
+        }
+
+        // --- usage/cost (cost in CNY) ---
+        try {
+            val costBody = execute("$COST_URL?month=$month&year=$year")
+            Log.d("DS_COST", costBody)
+            val costResp = gson.fromJson(costBody, UsageCostResponse::class.java)
+            val bizData = costResp.data?.bizData
+            if (bizData != null && bizData.isNotEmpty()) {
+                // Find today's entry
+                for (entry in bizData) {
+                    val todayDay = entry.days?.find { it.date == todayStr }
+                    if (todayDay != null) {
+                        // Sum costs across models for today
+                        var todayCostTotal = 0.0
+                        for (modelData in todayDay.data) {
+                            for (u in modelData.usage) {
+                                if (u.type == "PROMPT_TOKEN" || u.type == "PROMPT_CACHE_MISS_TOKEN" ||
+                                    u.type == "RESPONSE_TOKEN") {
+                                    todayCostTotal += u.amount?.toDoubleOrNull() ?: 0.0
+                                }
+                            }
+                        }
+                        costStr = "%.2f".format(todayCostTotal)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("DS_COST", "cost API failed", e)
+        }
+
+        return TodayUsage(costStr, inputTk, outputTk, cacheHit, cacheMiss, reqCount)
+    }
+
+    // ─── HTTP helper ──────────────────────────────────────────
+
+    private fun execute(url: String): String {
+        val request = buildRequest(url)
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
             throw when (response.code) {
                 401 -> Exception("登录已过期，请重新登录")
-                else -> Exception("用量接口返回 ${response.code}")
+                else -> Exception("API ${response.code}: ${response.body?.string() ?: ""}")
             }
         }
-
-        val body = response.body?.string() ?: throw Exception("用量接口响应为空")
-        Log.d("DS_API_SUMMARY", body)
-        val summary = gson.fromJson(body, UsageSummaryResponse::class.java)
-
-        if (summary.code != 0 || summary.data == null) {
-            throw Exception("用量数据不可用: ${summary.msg}")
-        }
-
-        val data = summary.data
-
-        // Convert from cents (cents in API, yuan in display)
-        val todayCents = data.today_costs.toLongOrNull() ?: 0L
-        val monthCents = data.month_costs.toLongOrNull() ?: 0L
-
-        val inputTokens = data.input_tokens.toLongOrNull() ?: 0L
-        val outputTokens = data.output_tokens.toLongOrNull() ?: 0L
-        val cacheTokens = data.cache_input_tokens.toLongOrNull() ?: 0L
-
-        // Calculate cache hit rate
-        val totalInput = inputTokens + cacheTokens
-        val hitRate = if (totalInput > 0) {
-            "%.1f".format((cacheTokens.toDouble() / totalInput) * 100)
-        } else {
-            "--"
-        }
-
-        val monthlyInput = data.month_input_tokens.toLongOrNull() ?: 0L
-        val monthlyOutput = data.month_output_tokens.toLongOrNull() ?: 0L
-        val todayRequests = data.today_request_counts.toLongOrNull() ?: 0L
-
-        return UsageSummary(
-            todayCost = "%.2f".format(todayCents / 100.0),
-            inputTokens = inputTokens,
-            outputTokens = outputTokens,
-            cacheTokens = cacheTokens,
-            cacheHitRate = hitRate,
-            todayRequests = todayRequests,
-            monthlyCost = "%.2f".format(monthCents / 100.0),
-            monthlyTokens = monthlyInput + monthlyOutput
-        )
+        return response.body?.string() ?: throw Exception("空响应")
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  Response DTOs
+// ═══════════════════════════════════════════════════════════════
+
+// ── get_user_summary ───────────────────────────────────────────
+
+data class SummaryResponse(
+    val code: Int = -1,
+    val msg: String = "",
+    val data: SummaryData? = null
+)
+
+data class SummaryData(
+    @SerializedName("biz_code") val bizCode: Int = -1,
+    @SerializedName("biz_msg") val bizMsg: String = "",
+    @SerializedName("biz_data") val bizData: SummaryBizData? = null
+)
+
+data class SummaryBizData(
+    @SerializedName("current_token") val currentToken: Long? = null,
+    @SerializedName("monthly_usage") val monthlyUsage: String? = null,
+    @SerializedName("total_usage") val totalUsage: Long? = null,
+    @SerializedName("normal_wallets") val normalWallets: List<Wallet>? = null,
+    @SerializedName("bonus_wallets") val bonusWallets: List<Wallet>? = null,
+    @SerializedName("total_available_token_estimation") val totalAvailableTokenEstimation: String? = null,
+    @SerializedName("monthly_costs") val monthlyCosts: List<MonthlyCost>? = null,
+    @SerializedName("monthly_token_usage") val monthlyTokenUsage: String? = null
+)
+
+data class Wallet(
+    val currency: String? = null,
+    val balance: String? = null,
+    @SerializedName("token_estimation") val tokenEstimation: String? = null
+)
+
+data class MonthlyCost(
+    val currency: String? = null,
+    val amount: String? = null
+)
+
+// ── usage/amount ────────────────────────────────────────────────
+
+data class UsageAmountResponse(
+    val code: Int = -1,
+    val msg: String = "",
+    val data: UsageAmountData? = null
+)
+
+data class UsageAmountData(
+    @SerializedName("biz_code") val bizCode: Int = -1,
+    @SerializedName("biz_msg") val bizMsg: String = "",
+    @SerializedName("biz_data") val bizData: List<DayUsage>? = null
+)
+
+data class DayUsage(
+    val date: String? = null,
+    val data: List<ModelUsageList>? = null
+)
+
+data class ModelUsageList(
+    val model: String? = null,
+    val usage: List<UsageEntry>? = null
+)
+
+data class UsageEntry(
+    val type: String? = null,
+    val amount: String? = null
+)
+
+// ── usage/cost ──────────────────────────────────────────────────
+
+data class UsageCostResponse(
+    val code: Int = -1,
+    val msg: String = "",
+    val data: UsageCostData? = null
+)
+
+data class UsageCostData(
+    @SerializedName("biz_code") val bizCode: Int = -1,
+    @SerializedName("biz_msg") val bizMsg: String = "",
+    @SerializedName("biz_data") val bizData: List<CostEntry>? = null
+)
+
+data class CostEntry(
+    val total: List<ModelUsageList>? = null,
+    val days: List<DayUsage>? = null,
+    val currency: String? = null
+)
