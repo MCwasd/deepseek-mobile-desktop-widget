@@ -17,7 +17,7 @@ android {
     compileSdk = 34
 
     signingConfigs {
-        create("debug") {
+        getByName("debug") {
             storeFile = file("debug.keystore")
             storePassword = "android"
             keyAlias = "debug"
