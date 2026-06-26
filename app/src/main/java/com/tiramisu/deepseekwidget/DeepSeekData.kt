@@ -37,6 +37,12 @@ data class WidgetDisplayData(
     val formattedOutputTokens: String
         get() = formatTokenCount(todayOutputTokens)
 
+    val formattedCacheHitTokens: String
+        get() = formatTokenCount(todayCacheHitTokens)
+
+    val formattedCacheMissTokens: String
+        get() = formatTokenCount(todayCacheMissTokens)
+
     val formattedCacheHitRate: String
         get() = if (cacheHitRate == "--") "--" else "$cacheHitRate%"
 
